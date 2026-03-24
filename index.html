@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MFM Youth Retreat — Registration</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --gold: #C9A84C;
+    --gold-light: #E8C87A;
+    --gold-pale: #FDF6E3;
+    --navy: #0E1C36;
+    --navy-mid: #1A2F52;
+    --navy-light: #243B68;
+    --white: #FFFFFF;
+    --gray-100: #F5F7FA;
+    --gray-200: #E8ECF2;
+    --gray-400: #9BA5B7;
+    --gray-600: #5A6680;
+    --gray-800: #2D3752;
+    --red: #D94F4F;
+    --green: #3A9E6F;
+    --radius: 10px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--navy);
+    min-height: 100vh;
+    color: var(--gray-800);
+  }
+
+  /* HERO */
+  .hero {
+    background: linear-gradient(145deg, var(--navy) 0%, var(--navy-mid) 60%, #1f3a70 100%);
+    padding: 56px 24px 48px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(201,168,76,0.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-badge {
+    display: inline-block;
+    background: rgba(201,168,76,0.15);
+    border: 1px solid rgba(201,168,76,0.4);
+    color: var(--gold-light);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 6px 18px;
+    border-radius: 40px;
+    margin-bottom: 22px;
+  }
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2.2rem, 6vw, 3.6rem);
+    font-weight: 900;
+    color: var(--white);
+    line-height: 1.1;
+    margin-bottom: 10px;
+  }
+  .hero h1 span { color: var(--gold); }
+  .hero p {
+    color: rgba(255,255,255,0.55);
+    font-size: 15px;
+    font-weight: 300;
+    margin-top: 8px;
+  }
+  .hero-divider {
+    width: 60px; height: 3px;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 2px;
+    margin: 20px auto 0;
+  }
+
+  /* MAIN CARD */
+  .form-wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0 16px 64px;
+  }
+  .form-card {
+    background: var(--white);
+    border-radius: 20px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.35);
+    overflow: hidden;
+    margin-top: -24px;
+  }
+
+  /* SECTIONS */
+  .section {
+    padding: 36px 40px;
+    border-bottom: 1px solid var(--gray-200);
+  }
+  .section:last-of-type { border-bottom: none; }
+  @media (max-width: 600px) { .section { padding: 28px 20px; } }
+
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 22px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title::before {
+    content: '';
+    display: inline-block;
+    width: 4px; height: 20px;
+    background: var(--gold);
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  /* GRID */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+  @media (max-width: 600px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  /* FIELDS */
+  .field { display: flex; flex-direction: column; gap: 6px; }
+
+  label.field-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--gray-600);
+    text-transform: uppercase;
+  }
+  label.field-label .req { color: var(--red); margin-left: 2px; }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--gray-800);
+    background: var(--gray-100);
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input:focus, select:focus {
+    border-color: var(--gold);
+    background: var(--white);
+    box-shadow: 0 0 0 3px rgba(201,168,76,0.15);
+  }
+  .invalid { border-color: var(--red) !important; background: #FFF5F5 !important; }
+  .field-error {
+    font-size: 11px;
+    color: var(--red);
+    font-weight: 500;
+    display: none;
+  }
+  .field-error.show { display: block; }
+
+  /* SELECT ARROW */
+  .select-wrap { position: relative; }
+  .select-wrap::after {
+    content: '▾';
+    position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--gray-400); pointer-events: none; font-size: 13px;
+  }
+
+  /* TOGGLE (radio pill) */
+  .toggle-group { display: flex; gap: 10px; flex-wrap: wrap; }
+  .toggle-group input[type="radio"] { display: none; }
+  .toggle-group label {
+    padding: 10px 22px;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 40px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gray-600);
+    cursor: pointer;
+    text-transform: none;
+    letter-spacing: 0;
+    transition: all 0.18s;
+    background: var(--gray-100);
+  }
+  .toggle-group input[type="radio"]:checked + label {
+    background: var(--navy);
+    border-color: var(--navy);
+    color: var(--white);
+  }
+  .invalid-group label { border-color: var(--red) !important; }
+
+  /* SIZE SWATCHES */
+  .size-group { display: flex; gap: 8px; flex-wrap: wrap; }
+  .size-group input[type="radio"] { display: none; }
+  .size-group label {
+    width: 52px; height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 8px;
+    font-size: 12px; font-weight: 600;
+    color: var(--gray-600);
+    cursor: pointer;
+    text-transform: none; letter-spacing: 0;
+    background: var(--gray-100);
+    transition: all 0.18s;
+  }
+  .size-group input[type="radio"]:checked + label {
+    background: var(--navy);
+    border-color: var(--navy);
+    color: var(--white);
+  }
+
+  /* WAIVER BLOCK */
+  .waiver-block {
+    background: var(--gold-pale);
+    border: 1px solid rgba(201,168,76,0.35);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin-bottom: 18px;
+  }
+  .waiver-block p {
+    font-size: 13px;
+    color: var(--gray-600);
+    line-height: 1.6;
+    margin-bottom: 14px;
+  }
+  .waiver-block a {
+    color: var(--navy-light);
+    font-weight: 600;
+    text-decoration: underline;
+  }
+  .waiver-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 10px;
+  }
+  .waiver-label .req { color: var(--red); }
+
+  /* PAYMENT */
+  .payment-placeholder {
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-mid) 100%);
+    border-radius: var(--radius);
+    padding: 32px 28px;
+    text-align: center;
+    color: var(--white);
+  }
+  .payment-placeholder .pay-icon { font-size: 2.2rem; margin-bottom: 10px; }
+  .payment-placeholder h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.15rem;
+    color: var(--gold-light);
+    margin-bottom: 6px;
+  }
+  .payment-placeholder p {
+    font-size: 13px;
+    color: rgba(255,255,255,0.6);
+    line-height: 1.6;
+    margin-bottom: 18px;
+  }
+  .provider-badges { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .provider-badge {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.8);
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-size: 12px; font-weight: 600;
+  }
+
+  /* SUBMIT */
+  .submit-wrap {
+    padding: 32px 40px;
+    background: var(--gray-100);
+    border-top: 1px solid var(--gray-200);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  @media (max-width: 600px) { .submit-wrap { padding: 24px 20px; } }
+
+  #val-summary {
+    display: none;
+    background: #FFF0F0;
+    border: 1.5px solid #FFBCBC;
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    font-size: 13px;
+    color: var(--red);
+    font-weight: 500;
+    max-width: 380px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .submit-btn {
+    width: 100%; max-width: 380px;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--gold) 0%, #B8902A 100%);
+    color: var(--navy);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px; font-weight: 700;
+    letter-spacing: 0.5px;
+    border: none; border-radius: 50px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 4px 18px rgba(201,168,76,0.35);
+  }
+  .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(201,168,76,0.45); }
+  .submit-btn:active { transform: translateY(0); }
+
+  .submit-note {
+    font-size: 12px;
+    color: var(--gray-400);
+    text-align: center;
+    display: flex; align-items: center; gap: 5px;
+  }
+
+  /* SUCCESS */
+  #success-msg {
+    display: none;
+    background: linear-gradient(135deg, #1a3a28 0%, #0e2119 100%);
+    color: white;
+    text-align: center;
+    padding: 60px 40px;
+  }
+  #success-msg .check { font-size: 3rem; margin-bottom: 12px; }
+  #success-msg h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem; color: #7EDBA8; margin-bottom: 8px;
+  }
+  #success-msg p {
+    color: rgba(255,255,255,0.65);
+    font-size: 14px; line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-badge">Official Registration</div>
+  <h1>MFM <span>Youth Retreat</span></h1>
+  <p>Complete all fields below to secure your spot</p>
+  <div class="hero-divider"></div>
+</div>
+
+<div class="form-wrap">
+<div class="form-card">
+<form id="regForm" novalidate>
+
+  <!-- 1. Personal Info -->
+  <div class="section">
+    <div class="section-title">Personal Information</div>
+    <div class="grid-2">
+      <div class="field">
+        <label class="field-label" for="firstName">First Name <span class="req">*</span></label>
+        <input type="text" id="firstName" placeholder="Jane" autocomplete="given-name"/>
+        <span class="field-error" id="err-firstName">Please enter your first name.</span>
+      </div>
+      <div class="field">
+        <label class="field-label" for="lastName">Last Name <span class="req">*</span></label>
+        <input type="text" id="lastName" placeholder="Doe" autocomplete="family-name"/>
+        <span class="field-error" id="err-lastName">Please enter your last name.</span>
+      </div>
+      <div class="field">
+        <label class="field-label" for="email">Email Address <span class="req">*</span></label>
+        <input type="email" id="email" placeholder="jane@example.com" autocomplete="email"/>
+        <span class="field-error" id="err-email">Please enter a valid email.</span>
+      </div>
+      <div class="field">
+        <label class="field-label" for="phone">Phone Number <span class="req">*</span></label>
+        <input type="tel" id="phone" placeholder="(555) 000-0000" autocomplete="tel"/>
+        <span class="field-error" id="err-phone">Please enter a valid 10-digit phone number.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Demographics -->
+  <div class="section">
+    <div class="section-title">Demographics &amp; Details</div>
+    <div class="grid-3">
+
+      <div class="field">
+        <label class="field-label">Gender <span class="req">*</span></label>
+        <div class="toggle-group" id="genderGroup">
+          <input type="radio" name="gender" id="gMale" value="Male"/>
+          <label for="gMale">Male</label>
+          <input type="radio" name="gender" id="gFemale" value="Female"/>
+          <label for="gFemale">Female</label>
+        </div>
+        <span class="field-error" id="err-gender">Please select your gender.</span>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="grade">Grade <span class="req">*</span></label>
+        <div class="select-wrap">
+          <select id="grade">
+            <option value="">Select grade</option>
+            <option>6th</option><option>7th</option><option>8th</option>
+            <option>9th</option><option>10th</option><option>11th</option>
+            <option>12th</option><option>College / Adult</option>
+          </select>
+        </div>
+        <span class="field-error" id="err-grade">Please select your grade.</span>
+      </div>
+
+      <div class="field">
+        <label class="field-label">T-Shirt Size <span class="req">*</span></label>
+        <div class="size-group" id="shirtGroup">
+          <input type="radio" name="shirt" id="sXS" value="XS"/><label for="sXS">XS</label>
+          <input type="radio" name="shirt" id="sS"  value="S" /><label for="sS">S</label>
+          <input type="radio" name="shirt" id="sM"  value="M" /><label for="sM">M</label>
+          <input type="radio" name="shirt" id="sL"  value="L" /><label for="sL">L</label>
+          <input type="radio" name="shirt" id="sXL" value="XL"/><label for="sXL">XL</label>
+          <input type="radio" name="shirt" id="sXXL" value="XXL"/><label for="sXXL">XXL</label>
+        </div>
+        <span class="field-error" id="err-shirt">Please select a T-shirt size.</span>
+      </div>
+    </div>
+
+    <div style="margin-top:18px;">
+      <div class="field">
+        <label class="field-label" for="state">State <span class="req">*</span></label>
+        <div class="select-wrap">
+          <select id="state">
+            <option value="">Select your state</option>
+            <option>Alabama</option><option>Alaska</option><option>Arizona</option>
+            <option>Arkansas</option><option>California</option><option>Colorado</option>
+            <option>Connecticut</option><option>Delaware</option><option>Florida</option>
+            <option>Georgia</option><option>Hawaii</option><option>Idaho</option>
+            <option>Illinois</option><option>Indiana</option><option>Iowa</option>
+            <option>Kansas</option><option>Kentucky</option><option>Louisiana</option>
+            <option>Maine</option><option>Maryland</option><option>Massachusetts</option>
+            <option>Michigan</option><option>Minnesota</option><option>Mississippi</option>
+            <option>Missouri</option><option>Montana</option><option>Nebraska</option>
+            <option>Nevada</option><option>New Hampshire</option><option>New Jersey</option>
+            <option>New Mexico</option><option>New York</option><option>North Carolina</option>
+            <option>North Dakota</option><option>Ohio</option><option>Oklahoma</option>
+            <option>Oregon</option><option>Pennsylvania</option><option>Rhode Island</option>
+            <option>South Carolina</option><option>South Dakota</option><option>Tennessee</option>
+            <option>Texas</option><option>Utah</option><option>Vermont</option>
+            <option>Virginia</option><option>Washington</option><option>West Virginia</option>
+            <option>Wisconsin</option><option>Wyoming</option>
+          </select>
+        </div>
+        <span class="field-error" id="err-state">Please select your state.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Branch Info -->
+  <div class="section">
+    <div class="section-title">Branch Information</div>
+    <div class="grid-2">
+      <div class="field">
+        <label class="field-label">Youth Coordinator in your branch? <span class="req">*</span></label>
+        <div class="toggle-group" id="coordGroup">
+          <input type="radio" name="coordinator" id="coordYes" value="Yes"/>
+          <label for="coordYes">Yes</label>
+          <input type="radio" name="coordinator" id="coordNo" value="No"/>
+          <label for="coordNo">No</label>
+        </div>
+        <span class="field-error" id="err-coordinator">Please select an option.</span>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="pastor">Branch Pastor <span class="req">*</span></label>
+        <div class="select-wrap">
+          <select id="pastor">
+            <option value="">Select Branch Pastor</option>
+            <!-- ✏️ REPLACE PLACEHOLDERS WITH YOUR PASTOR LIST -->
+            <option>Pastor A (placeholder)</option>
+            <option>Pastor B (placeholder)</option>
+            <option>Pastor C (placeholder)</option>
+          </select>
+        </div>
+        <span class="field-error" id="err-pastor">Please select your Branch Pastor.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Waivers -->
+  <div class="section">
+    <div class="section-title">Waivers &amp; Consent</div>
+
+    <div class="waiver-block">
+      <p>
+        Please download, complete, and submit the <strong>Retreat Waiver Form</strong> to your youth leader before the retreat.<br/>
+        <a href="https://drive.google.com/YOUR_WAIVER_LINK_HERE" target="_blank" rel="noopener">
+          &#128196; Download Waiver Form (Google Drive)
+        </a>
+      </p>
+      <div class="waiver-label">I have completed the Waiver Form <span class="req">*</span></div>
+      <div class="toggle-group" id="waiverGroup">
+        <input type="radio" name="waiver" id="wYes" value="Yes"/>
+        <label for="wYes">Yes</label>
+        <input type="radio" name="waiver" id="wNo" value="No"/>
+        <label for="wNo">No</label>
+      </div>
+      <span class="field-error" id="err-waiver">Please confirm your waiver status.</span>
+    </div>
+
+    <div class="waiver-block">
+      <p>
+        Download the waiver forms from the header, then submit the completed form to your youth leader.<br/>
+        <a href="https://drive.google.com/YOUR_RELEASE_WAIVER_LINK_HERE" target="_blank" rel="noopener">
+          &#128196; Download MFM Release Waiver (Google Drive)
+        </a>
+      </p>
+      <div class="waiver-label">I have completed the MFM Release Waiver <span class="req">*</span></div>
+      <div class="toggle-group" id="releaseGroup">
+        <input type="radio" name="release" id="rYes" value="Yes"/>
+        <label for="rYes">Yes</label>
+        <input type="radio" name="release" id="rNo" value="No"/>
+        <label for="rNo">No</label>
+      </div>
+      <span class="field-error" id="err-release">Please confirm your release waiver status.</span>
+    </div>
+
+    <div class="field" style="margin-top:4px;">
+      <label class="field-label">I opt-in to the Zip Line activity <span class="req">*</span></label>
+      <div class="toggle-group" id="zipGroup">
+        <input type="radio" name="zipline" id="zYes" value="Yes"/>
+        <label for="zYes">Yes, I'm in!</label>
+        <input type="radio" name="zipline" id="zNo" value="No"/>
+        <label for="zNo">No thanks</label>
+      </div>
+      <span class="field-error" id="err-zipline">Please select an option.</span>
+    </div>
+  </div>
+
+  <!-- 5. Payment -->
+  <div class="section">
+    <div class="section-title">Payment</div>
+    <div class="payment-placeholder">
+      <div class="pay-icon">&#128179;</div>
+      <h3>Secure Payment Gateway</h3>
+      <p>
+        Credit card payment will be processed here.<br/>
+        Connect your preferred payment provider (Stripe, PayPal, or Square) to activate this section.
+      </p>
+      <div class="provider-badges">
+        <span class="provider-badge">Stripe</span>
+        <span class="provider-badge">PayPal</span>
+        <span class="provider-badge">Square</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Submit -->
+  <div class="submit-wrap">
+    <div id="val-summary">&#9888;&#65039; Please fill in all required fields before submitting.</div>
+    <button type="submit" class="submit-btn">Complete Registration &rarr;</button>
+    <p class="submit-note">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0">
+        <rect x="3" y="11" width="18" height="11" rx="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      Your information is encrypted and securely stored
+    </p>
+  </div>
+
+</form>
+
+<!-- Success -->
+<div id="success-msg">
+  <div class="check">&#9989;</div>
+  <h2>Registration Submitted!</h2>
+  <p>
+    Thank you for registering for the MFM Youth Retreat.<br/>
+    You will receive a confirmation email shortly.<br/>
+    Please ensure your waiver forms are submitted to your youth leader.
+  </p>
+</div>
+
+</div>
+</div>
+
+<script>
+// Phone formatter
+document.getElementById('phone').addEventListener('input', function(e){
+  let v = e.target.value.replace(/\D/g,'');
+  if(v.length>=7)      v = '('+v.slice(0,3)+') '+v.slice(3,6)+'-'+v.slice(6,10);
+  else if(v.length>=4) v = '('+v.slice(0,3)+') '+v.slice(3);
+  else if(v.length>0)  v = '('+v;
+  e.target.value = v;
+});
+
+// Helpers
+function ok(id)   { var el=document.getElementById(id); el.classList.remove('invalid'); document.getElementById('err-'+id).classList.remove('show'); }
+function fail(id) { var el=document.getElementById(id); el.classList.add('invalid');    document.getElementById('err-'+id).classList.add('show'); }
+function okG(gid,eid)   { document.getElementById(gid).classList.remove('invalid-group'); document.getElementById(eid).classList.remove('show'); }
+function failG(gid,eid) { document.getElementById(gid).classList.add('invalid-group');    document.getElementById(eid).classList.add('show'); }
+function radio(name)    { var r=document.querySelector('input[name="'+name+'"]:checked'); return r?r.value:''; }
+
+// Live clear
+['firstName','lastName','email','phone','grade','state','pastor'].forEach(function(id){
+  document.getElementById(id).addEventListener('input',  function(){ ok(id); });
+  document.getElementById(id).addEventListener('change', function(){ ok(id); });
+});
+var radioMaps = {gender:'genderGroup',coordinator:'coordGroup',waiver:'waiverGroup',release:'releaseGroup',zipline:'zipGroup'};
+Object.keys(radioMaps).forEach(function(name){
+  document.querySelectorAll('input[name="'+name+'"]').forEach(function(r){
+    r.addEventListener('change', function(){ okG(radioMaps[name],'err-'+name); });
+  });
+});
+document.querySelectorAll('input[name="shirt"]').forEach(function(r){
+  r.addEventListener('change', function(){ okG('shirtGroup','err-shirt'); });
+});
+
+// Submit
+document.getElementById('regForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  var valid = true;
+
+  // Text / select
+  var checks = [
+    {id:'firstName', fn:function(v){return v.trim().length>0;}},
+    {id:'lastName',  fn:function(v){return v.trim().length>0;}},
+    {id:'email',     fn:function(v){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);}},
+    {id:'phone',     fn:function(v){return v.replace(/\D/g,'').length>=10;}},
+    {id:'grade',     fn:function(v){return v!=='';}},
+    {id:'state',     fn:function(v){return v!=='';}},
+    {id:'pastor',    fn:function(v){return v!=='';}},
+  ];
+  checks.forEach(function(c){
+    var el=document.getElementById(c.id);
+    if(!c.fn(el.value)){ fail(c.id); valid=false; } else ok(c.id);
+  });
+
+  // Radio groups
+  var groups = [
+    {name:'gender',      gid:'genderGroup', eid:'err-gender'},
+    {name:'shirt',       gid:'shirtGroup',  eid:'err-shirt'},
+    {name:'coordinator', gid:'coordGroup',  eid:'err-coordinator'},
+    {name:'waiver',      gid:'waiverGroup', eid:'err-waiver'},
+    {name:'release',     gid:'releaseGroup',eid:'err-release'},
+    {name:'zipline',     gid:'zipGroup',    eid:'err-zipline'},
+  ];
+  groups.forEach(function(g){
+    if(!radio(g.name)){ failG(g.gid,g.eid); valid=false; } else okG(g.gid,g.eid);
+  });
+
+  var summary = document.getElementById('val-summary');
+  if(!valid){
+    summary.style.display='block';
+    var first = document.querySelector('.invalid, .invalid-group');
+    if(first) first.scrollIntoView({behavior:'smooth',block:'center'});
+    return;
+  }
+  summary.style.display='none';
+
+  // Collect data — POST to your backend / payment gateway here
+  var data = {
+    firstName:   document.getElementById('firstName').value.trim(),
+    lastName:    document.getElementById('lastName').value.trim(),
+    email:       document.getElementById('email').value.trim(),
+    phone:       document.getElementById('phone').value.trim(),
+    gender:      radio('gender'),
+    grade:       document.getElementById('grade').value,
+    tshirt:      radio('shirt'),
+    state:       document.getElementById('state').value,
+    coordinator: radio('coordinator'),
+    pastor:      document.getElementById('pastor').value,
+    waiver:      radio('waiver'),
+    release:     radio('release'),
+    zipline:     radio('zipline'),
+  };
+  console.log('Registration data:', data);
+  // TODO: Replace with your backend POST or payment gateway trigger
+
+  // Show success screen
+  document.getElementById('regForm').style.display='none';
+  document.getElementById('success-msg').style.display='block';
+  window.scrollTo({top:0,behavior:'smooth'});
+});
+</script>
+</body>
+</html>
