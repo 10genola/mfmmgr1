@@ -62,7 +62,7 @@ function fixture(sheetId = 0) {
   f.transport = ctx.paypal;
   f.ctx = ctx;
   f.advance = ms => now += ms;
-  f.call = (action, n = 1, data = {}) => ctx.doPost({postData:{contents:JSON.stringify({action, token:token(n), ...data})}});
+  f.call = (action, n = 1, data = {}) => ctx.doPost({postData:{contents:JSON.stringify({action, token:token(n), paymentVersion:2, ...data})}});
   f.row = (n = 1) => rows.find(row => row[C.hash] === ctx.hashToken(token(n)));
   f.register = (n = 1, overrides = {}) => {
     const result = f.call('register', n, {...fields, ...overrides});
@@ -78,7 +78,7 @@ function fixture(sheetId = 0) {
   f.complete = order => {
     order.status = 'COMPLETED';
     order.purchase_units[0].payments = {captures:[{id:'CAPTURE' + order.id,
-      status:'COMPLETED', amount:{currency_code:'USD', value:'200.00'}, create_time:new Clock().toISOString()}]};
+      status:'COMPLETED', amount:clone(order.purchase_units[0].amount), create_time:new Clock().toISOString()}]};
   };
   ctx.paypal = (path, method = 'get', body, requestId, c) => {
     assert.equal(locked, false, 'PayPal must never run under the global script lock');
@@ -173,7 +173,7 @@ test('checkout uses saved email, fixed amount/recipient and ignores browser orde
   const f = fixture(); f.register(); f.register(2); f.create();
   const body = f.calls.find(c => c.method === 'post').body;
   assert.equal(body.payer.email_address, fields.email);
-  assert.deepEqual(body.purchase_units[0].amount, {currency_code:'USD', value:'200.00'});
+  assert.deepEqual(body.purchase_units[0].amount, {currency_code:'USD', value:'204.47'});
   assert.equal(body.purchase_units[0].payee.merchant_id, 'merchant');
   assert.equal(f.call('confirmPayment', 2, {paypalOrderId:f.order().id}).paid, false);
 });
@@ -204,7 +204,7 @@ test('recipient, amount, currency, order ID, intent and registration are checked
 
 test('pending, underpaid, overpaid, foreign or duplicate captures never confirm registration', () => {
   for (const mutate of [c => c.status = 'PENDING', c => c.amount.value = '100.00',
-    c => c.amount.value = '201.00', c => c.amount.currency_code = 'EUR', c => c.id = '']) {
+    c => c.amount.value = '205.00', c => c.amount.currency_code = 'EUR', c => c.id = '']) {
     const f = fixture(); f.register(); f.create(); f.complete(f.order());
     mutate(f.order().purchase_units[0].payments.captures[0]);
     assert.equal(f.call('confirmPayment').ok, false);
@@ -612,11 +612,12 @@ test('corrected details update the same pending record before any checkout start
 });
 
 test('changed details are explicitly rejected once checkout, coordinator reporting, or payment starts', () => {
-  for (const stage of ['order','creating','coordinator','paid','busy']) {
+  for (const stage of ['order','creating','coordinator','zelle','paid','busy']) {
     const f = fixture(); f.register();
     if (stage === 'order' || stage === 'paid') f.create();
     if (stage === 'paid') { f.complete(f.order()); f.call('confirmPayment'); }
     if (stage === 'coordinator') f.call('coordinatorPayment');
+    if (stage === 'zelle') f.call('selectZelle');
     if (stage === 'creating') f.row()[C.key] = 'pending-create';
     if (stage === 'busy') { f.row()[C.lease] = 'active'; f.row()[C.until] = Date.now() + 600000; }
     const result = f.call('register', 1, {...fields, email:'different@example.com'});
@@ -633,17 +634,143 @@ test('sheet escaping does not make an unchanged registration look like an edit',
   assert.equal(f.call('register', 1, {...fields, firstName:'=Name'}).ok, true);
 });
 
-test('phone formatting preserves US country-code numbers and never truncates invalid input', () => {
+test('phone formatting caps local numbers at ten digits and accepts a US country code', () => {
   const ctx = {};
   vm.createContext(ctx);
   vm.runInContext(html.slice(html.indexOf('function formatPhone('), html.indexOf("document.getElementById('phone').addEventListener")), ctx);
-  for (const value of ['2125551234', '(212) 555-1234', '+1 (212) 555-1234', '12125551234']) {
+  for (const value of ['2125551234', '(212) 555-1234', '+1 (212) 555-1234', '12125551234', '212555123456', '+1 212555123456', '2125551234 ext 5']) {
     assert.equal(ctx.formatPhone(value), '(212) 555-1234');
   }
-  for (const value of ['212555123456', '+44 20 7946 0958', '2125551234 ext 5']) {
-    assert.equal(ctx.formatPhone(value), value);
-  }
+  assert.equal(ctx.formatPhone('abc'), '');
   assert.equal(ctx.formatPhone(''), '');
+});
+
+test('new quotes separate registration and processing fee; client cannot set the price', () => {
+  const f=fixture(); const state=f.register();
+  assert.equal(state.registrationAmount, '200.00'); assert.equal(state.checkoutAmount, '204.47');
+  assert.equal(state.paymentVersion, 2); assert.equal(state.zelleRecipient, 'giving@mfmnewyork.org');
+  const order=f.call('createOrder',1,{amount:'0.01', checkoutAmount:'200.00', processingFee:0});
+  assert.equal(order.checkoutAmount,'204.47');
+  assert.equal(f.order().purchase_units[0].amount.value,'204.47');
+  const saved=JSON.parse(f.row()[C.context]); assert.equal(saved.amount,'204.47'); assert.equal(saved.currency,'USD');
+});
+
+test('older browser versions cannot start checkout at an undisclosed higher price', () => {
+  for (const paymentVersion of [undefined,1,'2',null]) {
+    const f=fixture(); f.register();
+    for (const action of ['createOrder','selectZelle','zellePayment']) {
+      assert.match(f.call(action,1,{paymentVersion}).error,/refresh this page/);
+    }
+    assert.equal(f.calls.length,0); assert.equal(f.row()[C.status],'Pending');
+  }
+});
+
+test('new checkout rejects a capture that omits the processing fee', () => {
+  const f=fixture(); f.register(); f.create(); f.complete(f.order());
+  f.order().purchase_units[0].payments.captures[0].amount.value='200.00';
+  assert.equal(f.call('confirmPayment').ok,false); assert.equal(f.row()[C.status],'Pending');
+});
+
+test('legacy $200 orders remain verifiable with or without their original context', () => {
+  for (const savedContext of ['', 'sandbox:merchant:client']) {
+    const f=fixture(); f.register(); f.create();
+    f.row()[C.context]=savedContext;
+    f.order().purchase_units[0].amount.value='200.00';
+    assert.equal(f.call('status').checkoutAmount,'200.00');
+    f.order().status='APPROVED';
+    const state=f.call('confirmPayment');
+    assert.equal(state.paid,true,JSON.stringify(state)); assert.equal(state.paidAmount,'200.00');
+    assert.equal(f.count('capture'),1);
+  }
+});
+
+test('replacement legacy orders retain their $200 quote, including authentication failure', () => {
+  for (const savedContext of ['', 'sandbox:merchant:client']) {
+    const f=fixture(); f.register(); f.create();
+    f.row()[C.context]=savedContext; f.order().purchase_units[0].amount.value='200.00'; f.order().status='VOIDED';
+    f.beforeRequest=({method})=>{if(method==='post'){const e=Error('Authentication failed'); e.requestNotSent=true;throw e;}};
+    assert.equal(f.call('createOrder').ok,false);
+    assert.equal(f.call('status').checkoutAmount,'200.00');
+    f.beforeRequest=null; f.create();
+    assert.equal(f.order().purchase_units[0].amount.value,'200.00');
+    f.order().status='APPROVED'; assert.equal(f.call('confirmPayment').paid,true);
+  }
+});
+
+test('lost legacy creation responses recover the same $200 order', () => {
+  const f=fixture(); f.register(); f.create();
+  f.order().purchase_units[0].amount.value='200.00'; f.row()[C.context]='sandbox:merchant:client';
+  f.row()[C.order]='';
+  assert.equal(f.create(),'ORDER1'); assert.equal(f.orders.size,1);
+  assert.equal(f.call('status').checkoutAmount,'200.00');
+});
+
+test('invalid saved price contexts fail closed without creating or capturing payments', () => {
+  for(const saved of ['{bad',JSON.stringify({version:2,account:'sandbox:merchant:client',amount:'1.00',currency:'USD'}),
+    JSON.stringify({version:2,account:'sandbox:merchant:client',amount:'204.47',currency:'EUR'})]) {
+    const f=fixture();f.register();f.row()[C.context]=saved;
+    assert.equal(f.call('createOrder').ok,false); assert.equal(f.calls.length,0);
+  }
+});
+
+test('choosing and reporting Zelle are idempotent and never claim verified payment', () => {
+  const f=fixture();f.register();
+  assert.equal(f.call('zellePayment').ok,false);
+  for(let i=0;i<2;i++) {
+    const selected=f.call('selectZelle'); assert.equal(selected.zelleSelected,true);assert.equal(selected.paid,false);
+    assert.equal(selected.zelleReported,false);assert.equal(f.row()[C.status],'Zelle Pending');
+  }
+  for(let i=0;i<2;i++) {
+    const reported=f.call('zellePayment');assert.equal(reported.zelleReported,true);assert.equal(reported.paid,false);
+    assert.equal(f.row()[C.status],'Zelle');
+  }
+  assert.equal(f.call('status').zelleReported,true);assert.equal(f.calls.length,0);
+  assert.equal(f.row()[17],'');assert.equal(f.row()[C.capture],'');
+});
+
+test('Zelle closes an approved online order before transfer instructions and prevents recovery charges', () => {
+  const f=fixture();f.register();f.create();f.order().status='APPROVED';
+  assert.equal(f.call('selectZelle').zelleSelected,true);
+  assert.equal(f.call('createOrder').ok,false);
+  assert.equal(f.call('confirmPayment').zelleSelected,true);
+  f.ctx.recoverPendingPayments();
+  assert.equal(f.count('capture'),0);assert.equal(f.row()[C.status],'Zelle Pending');
+  assert.equal(f.call('zellePayment').zelleReported,true);
+  f.ctx.recoverPendingPayments();assert.equal(f.count('capture'),0);
+});
+
+test('Zelle cannot replace an in-flight or unresolved online payment', () => {
+  for(const stage of ['pendingCapture','captureUnknown','createUnknown']) {
+    const f=fixture();f.register();
+    if(stage==='createUnknown') f.row()[C.key]='unresolved';
+    else {
+      f.create();f.order().status='APPROVED';
+      if(stage==='pendingCapture') f.order().purchase_units[0].payments={captures:[{status:'PENDING'}]};
+      else f.row()[C.requested]=new Date().toISOString();
+    }
+    assert.equal(f.call('selectZelle').ok,false,stage);assert.equal(f.row()[C.status],'Pending');
+    assert.equal(f.count('capture'),0);
+  }
+});
+
+test('Zelle cannot race a capture or downgrade a completed online payment', () => {
+  const f=fixture();f.register();f.create();f.order().status='APPROVED';
+  f.beforeRequest=({path})=>{if(path.endsWith('/capture'))assert.equal(f.call('selectZelle').ok,false);};
+  assert.equal(f.call('confirmPayment').paid,true);
+  assert.equal(f.call('selectZelle').paid,true);assert.equal(f.call('zellePayment').paid,true);
+  const g=fixture();g.register();g.create();g.complete(g.order());
+  assert.equal(g.call('selectZelle').paid,true);assert.equal(g.row()[C.status],'Paid');assert.equal(g.count('capture'),0);
+});
+
+test('offline reports cannot change each other and manual receipt confirmation stays Paid', () => {
+  const f=fixture();f.register();f.call('selectZelle');f.call('zellePayment');
+  assert.equal(f.call('coordinatorPayment').zelleReported,true);assert.equal(f.row()[C.status],'Zelle');
+  f.row()[C.status]='Paid';f.row()[17]='200.00';
+  for(const action of ['status','selectZelle','zellePayment','createOrder','confirmPayment'])assert.equal(f.call(action).paid,true);
+  assert.equal(f.calls.length,0);
+  const g=fixture();g.register();g.call('coordinatorPayment');
+  assert.equal(g.call('selectZelle').coordinatorReported,true);assert.equal(g.call('zellePayment').ok,false);
+  assert.equal(g.row()[C.status],'Coordinator');
 });
 
 async function frontendTests() {
@@ -652,44 +779,51 @@ async function frontendTests() {
   }
   assert(!html.includes("mode: 'no-cors'"));
   assert(!html.includes('actions.order.capture'));
-  function ui(response) {
-    const nodes = {};
+  function ui(response, initial={}) {
+    const nodes = {}, all=[];
     function element() {
-      return {style:{}, textContent:'', children:[], setAttribute:() => {},
+      const el={style:{}, textContent:'', children:[], setAttribute:() => {},
         appendChild(child) { this.children.push(child); }, replaceChildren() { this.children = []; },
         remove() { this.removed = true; }, querySelector:selector => nodes[selector] ||= element()};
+      all.push(el);return el;
     }
     let callbacks;
-    const ctx = {document:{getElementById:id => nodes[id] ||= element(), createElement:element},
+    const ctx = {PAYMENT_VERSION:2, document:{getElementById:id => nodes[id] ||= element(), createElement:element},
       paypal:{Buttons:options => { callbacks = options; return {render:() => Promise.resolve()}; }},
       api:async () => response};
     vm.createContext(ctx);
     vm.runInContext(html.slice(html.indexOf('function showSuccessAndPay('), html.indexOf("if (sessionStorage.getItem('mfm-registration-saved')")), ctx);
-    ctx.showSuccessAndPay({registrationId:'REG1', paid:false});
-    return {nodes, callbacks, ctx};
+    ctx.showSuccessAndPay({registrationId:'REG1', paid:false,paymentVersion:2,checkoutAmount:'204.47',...initial});
+    return {nodes, callbacks, ctx, find:text=>all.find(el=>el.textContent===text)};
   }
-  const f = ui({paid:true, registrationId:'REG1'});
-  await assert.rejects(f.callbacks.createOrder());
-  f.callbacks.onError(Error('Checkout closed'));
-  f.callbacks.onCancel();
+  const f = ui({paid:true, paidAmount:'204.47',registrationId:'REG1'});
+  await assert.rejects(f.callbacks.createOrder());f.callbacks.onError(Error('Checkout closed'));f.callbacks.onCancel();
   assert.equal(f.nodes.h2.textContent, 'Registration confirmed');
-  assert.match(f.nodes['paypal-button-container'].children[0].textContent, /Payment verified/);
-  assert.equal(f.nodes['paypal-button-container'].children[2].removed, true);
+  assert.match(f.nodes['paypal-button-container'].children[0].textContent, /Payment verified: \$204.47/);
+  assert.equal(f.find('I have paid my youth coordinator').removed,true);
   const g = ui({paid:false, coordinatorReported:true, registrationId:'REG1'});
-  await g.callbacks.onApprove();
-  assert.equal(g.nodes['paypal-button-container'].children[1].hidden, true);
-  assert.equal(g.nodes['paypal-button-container'].children[2].textContent, 'Awaiting coordinator verification');
+  await g.callbacks.onApprove();assert.equal(g.nodes.h2.textContent,'Awaiting coordinator verification');
+  assert.equal(g.nodes['paypal-button-container'].children[2].hidden,true);
   let restarts = 0;
   const declined = ui({paid:false, retryPayment:true, paymentIssue:'INSTRUMENT_DECLINED', registrationId:'REG1'});
   await declined.callbacks.onApprove({}, {restart:async () => { restarts++; }});
   assert.equal(restarts, 1);
   assert.match(declined.nodes['paypal-button-container'].children[0].textContent, /choose another/i);
-  assert.notEqual(declined.nodes.h2.textContent, 'Registration confirmed');
   const pending = ui({paid:false, registrationId:'REG1'});
   await pending.callbacks.onApprove({}, {restart:async () => { restarts++; }});
   assert.equal(restarts, 1, 'pending payments must not restart checkout');
+  const zelle=ui({}, {zelleSelected:true,zelleReported:true,zelleRecipient:'giving@mfmnewyork.org'});
+  assert.equal(zelle.callbacks,undefined);assert.equal(zelle.nodes.h2.textContent,'Zelle payment reported');
+  const stale=ui({}, {paymentVersion:undefined});assert.equal(stale.callbacks,undefined);
+  assert.match(stale.nodes['paypal-button-container'].children[0].textContent,/Payments are temporarily unavailable/);
+  assert.notEqual(stale.nodes['paypal-button-container'].children[2].hidden,true);
+  assert.equal(stale.find('Pay with Zelle').disabled,true);
+  assert.equal(stale.find('Pay with PayPal or card').disabled,true);
+  assert(stale.find('$204.47'));assert(stale.find('$200.00'));
+  await stale.find('Pay with Zelle').onclick();
+  assert.match(stale.nodes['paypal-button-container'].children[0].textContent,/Payments are temporarily unavailable/);
   passed++;
-  console.log('PASS frontend syntax, confirmed/coordinator state, and PayPal funding restart callbacks');
+  console.log('PASS frontend syntax, payment states, version guard, and PayPal funding restart callbacks');
 }
 frontendTests().then(() => console.log('\n' + passed + ' regression groups passed (including all required-field permutations).'))
   .catch(error => { console.error(error); process.exitCode = 1; });

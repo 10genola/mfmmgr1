@@ -42,6 +42,9 @@ async function openForm(browser, options = {}) {
       const payload = route.request().postDataJSON();
       requests.push(payload);
       const result = f.ctx.doPost({postData:{contents:JSON.stringify(payload)}});
+      if (options.legacyBackend) delete result.paymentVersion;
+      if (options.loseZelleSelection && payload.action==='selectZelle') {options.loseZelleSelection=false;return route.abort();}
+      if (options.loseZelleReport && payload.action==='zellePayment') {options.loseZelleReport=false;return route.abort();}
       if (options.loseSave && payload.action === 'register') { options.loseSave = false; return route.abort(); }
       return route.fulfill({contentType:'application/json', headers:{'Access-Control-Allow-Origin':'*'}, body:JSON.stringify(result)});
     }
@@ -110,12 +113,15 @@ async function run() {
         assert.equal(await page.locator('input[name="' + name + '"]:checked').count(), 1);
       }
     });
-    await test('US country-code autofill preserves the correct phone number', async open => {
+    await test('phone input limits typing and pasted numbers to ten digits, preserving US autofill', async open => {
       const {page} = await open();
       await page.locator('#phone').fill('+1 (212) 555-1234');
       assert.equal((await page.locator('#phone').inputValue()).replace(/\D/g, ''), '2125551234');
       await page.locator('#phone').fill('212555123456');
-      assert.equal((await page.locator('#phone').inputValue()).replace(/\D/g, ''), '212555123456', 'never silently cut off digits');
+      assert.equal((await page.locator('#phone').inputValue()).replace(/\D/g, ''), '2125551234');
+      await page.locator('#phone').fill('');
+      await page.locator('#phone').pressSequentially('212555123456');
+      assert.equal(await page.locator('#phone').inputValue(), '(212) 555-1234');
     });
     await test('form saves exact details, then verifies payment once and restores on refresh', async open => {
       const {page, f, requests} = await open();
@@ -126,12 +132,13 @@ async function run() {
       assert.equal(f.orders.size, 0, 'saving alone cannot start payment');
       await page.getByText('Test PayPal checkout', {exact:true}).click();
       await page.waitForFunction(() => window.testOrderId);
+      assert.equal(await page.getByText('$200.00 registration + $4.47 processing fee to help cover PayPal and card transaction costs.',{exact:true}).isVisible(),true);
       const order = [...f.orders.values()][0];
-      assert.equal(order.purchase_units[0].amount.value, '200.00');
+      assert.equal(order.purchase_units[0].amount.value, '204.47');
       order.status = 'APPROVED';
       await page.evaluate(() => window.checkout.onApprove({}, {}));
       assert.equal(await page.locator('#success-msg h2').textContent(), 'Registration confirmed');
-      assert.equal(await page.getByText('Payment made to your coordinator', {exact:true}).count(), 0);
+      assert.equal(await page.getByText('I have paid my youth coordinator', {exact:true}).count(), 0);
       assert.equal((await row(f))[C.status], 'Paid');
       await page.reload();
       await page.locator('#success-msg').waitFor({state:'visible'});
@@ -141,7 +148,7 @@ async function run() {
     });
     await test('coordinator report closes checkout and stays uncharged after refresh', async open => {
       const {page, f} = await open(); await fillForm(page); await save(page);
-      await page.getByText('Payment made to your coordinator', {exact:true}).click();
+      await page.getByText('I have paid my youth coordinator', {exact:true}).click();
       await page.getByText('Awaiting coordinator verification', {exact:true}).waitFor();
       assert.equal((await row(f))[C.status], 'Coordinator');
       await page.reload(); await page.getByText('Awaiting coordinator verification', {exact:true}).waitFor();
@@ -167,7 +174,7 @@ async function run() {
     });
     await test('missing PayPal SDK leaves details saved with a clear error', async open => {
       const {page, f} = await open({missingSDK:true}); await fillForm(page); await save(page);
-      assert.match(await page.locator('#paypal-button-container').textContent(), /PayPal is not configured or could not load/);
+      assert.match(await page.locator('#paypal-button-container').textContent(), /PayPal could not load/);
       assert.equal((await row(f))[C.status], 'Pending');
       assert.equal(f.orders.size, 0);
     });
@@ -188,6 +195,83 @@ async function run() {
       f.beforeRequest = null; f.ctx.recoverPendingPayments(); assert.equal(f.count('capture'), 1);
       await page.evaluate(() => window.checkout.onApprove({}, {}));
       assert.equal((await row(f))[C.status], 'Paid');
+    });
+    await test('Zelle instructions, pending report, refresh, and church verification', async open => {
+      const {page,f}=await open();await fillForm(page);await save(page);
+      assert.equal(await page.getByText('$204.47',{exact:true}).isVisible(),true);
+      assert.equal(await page.locator('.zelle-recipient').isVisible(),false,'no transfer instructions before closing online checkout');
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+      if(process.env.SCREENSHOT_DIR) {
+        await page.setViewportSize({width:1100,height:1150});
+        await page.locator('#success-msg').screenshot({path:path.join(process.env.SCREENSHOT_DIR,'payment-options.png')});
+        await page.setViewportSize({width:390,height:844});
+      }
+      await page.getByRole('button',{name:'Pay with Zelle',exact:true}).click();
+      await page.getByRole('heading',{name:'Complete your Zelle payment',exact:true}).waitFor();
+      assert.equal((await row(f))[C.status],'Zelle Pending');
+      assert.equal(await page.getByText('giving@mfmnewyork.org',{exact:true}).isVisible(),true);
+      assert.equal(await page.getByText('Test PayPal checkout',{exact:true}).isVisible(),false);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+      if(process.env.SCREENSHOT_DIR) await page.locator('#success-msg').screenshot({path:path.join(process.env.SCREENSHOT_DIR,'zelle-mobile.png')});
+      await page.reload();await page.getByRole('heading',{name:'Complete your Zelle payment',exact:true}).waitFor();
+      await page.getByRole('button',{name:'I have sent my Zelle payment',exact:true}).click();
+      await page.getByRole('heading',{name:'Zelle payment reported',exact:true}).waitFor();
+      assert.equal((await row(f))[C.status],'Zelle');assert.equal(f.orders.size,0);
+      await page.reload();await page.getByRole('heading',{name:'Zelle payment reported',exact:true}).waitFor();
+      assert.match(await page.locator('#payment-status').textContent(),/pending while the church verifies receipt/);
+      f.ctx.recoverPendingPayments();assert.equal(f.count('capture'),0);
+      (await row(f))[C.status]='Paid';(await row(f))[17]='200.00';
+      await page.reload();await page.getByRole('heading',{name:'Registration confirmed',exact:true}).waitFor();
+      assert.match(await page.locator('#payment-status').textContent(),/Payment verified: \$200.00/);
+      assert.equal(await page.getByRole('button',{name:'Pay with Zelle',exact:true}).isVisible(),false);
+    });
+    await test('lost Zelle responses recover the saved selection and report after refresh', async open => {
+      const {page,f}=await open({loseZelleSelection:true,loseZelleReport:true});await fillForm(page);await save(page);
+      await page.getByRole('button',{name:'Pay with Zelle',exact:true}).click();
+      await page.waitForFunction(()=>document.getElementById('payment-status').textContent.includes('could not confirm this update'));
+      assert.equal((await row(f))[C.status],'Zelle Pending');
+      assert.equal(await page.locator('.zelle-recipient').isVisible(),false);
+      await page.reload();await page.getByRole('heading',{name:'Complete your Zelle payment',exact:true}).waitFor();
+      await page.getByRole('button',{name:'I have sent my Zelle payment',exact:true}).click();
+      await page.waitForFunction(()=>document.getElementById('payment-status').textContent.includes('could not confirm this update'));
+      assert.equal((await row(f))[C.status],'Zelle');
+      await page.reload();await page.getByRole('heading',{name:'Zelle payment reported',exact:true}).waitFor();
+      assert.equal(f.rows.length,2);assert.equal(f.count('capture'),0);
+    });
+    await test('unresolved PayPal payment blocks Zelle instructions', async open => {
+      const {page,f}=await open();await fillForm(page);await save(page);
+      await page.getByText('Test PayPal checkout',{exact:true}).click();await page.waitForFunction(()=>window.testOrderId);
+      [...f.orders.values()][0].status='APPROVED';
+      [...f.orders.values()][0].purchase_units[0].payments={captures:[{status:'PENDING'}]};
+      await page.getByRole('button',{name:'Pay with Zelle',exact:true}).click();
+      await page.waitForFunction(()=>document.getElementById('payment-status').textContent.includes('still processing'));
+      assert.equal(await page.locator('.zelle-recipient').isVisible(),false);
+      assert.equal((await row(f))[C.status],'Pending');assert.equal(f.count('capture'),0);
+    });
+    await test('older backend shows both payment choices while keeping unsupported actions disabled', async open => {
+      const {page,f}=await open({legacyBackend:true});await fillForm(page);await save(page);
+      assert.match(await page.locator('#payment-status').textContent(),/Payments are temporarily unavailable/);
+      for(const name of ['Pay with Zelle','Pay with PayPal or card']) {
+        assert.equal(await page.getByRole('button',{name,exact:true}).isVisible(),true);
+        assert.equal(await page.getByRole('button',{name,exact:true}).isEnabled(),false);
+      }
+      assert.equal(await page.getByText('$204.47',{exact:true}).isVisible(),true);
+      assert.equal(await page.getByText('$200.00',{exact:true}).isVisible(),true);
+      assert.equal(await page.locator('.zelle-recipient').isVisible(),false);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+      assert.equal(await page.getByText('Test PayPal checkout',{exact:true}).count(),0);
+      assert.equal(f.orders.size,0);
+    });
+    await test('existing $200 checkout keeps its disclosed total after refresh', async open => {
+      const {page,f}=await open();await fillForm(page);await save(page);
+      await page.getByText('Test PayPal checkout',{exact:true}).click();await page.waitForFunction(()=>window.testOrderId);
+      (await row(f))[C.context]='sandbox:merchant:client';[...f.orders.values()][0].purchase_units[0].amount.value='200.00';
+      await page.reload();await page.locator('#success-msg').waitFor({state:'visible'});
+      assert.match(await page.locator('.online-option').textContent(),/existing checkout remains \$200.00/);
+      await page.getByText('Test PayPal checkout',{exact:true}).click();await page.waitForFunction(()=>window.testOrderId);
+      [...f.orders.values()][0].status='APPROVED';await page.evaluate(()=>window.checkout.onApprove({},{}));
+      assert.equal((await row(f))[C.status],'Paid');assert.equal((await row(f))[17],'200.00');
+      assert.equal(f.orders.size,1);
     });
     console.log('\n' + passed + ' browser groups passed. Hosted PayPal checkout is simulated.');
   } finally { await browser.close(); }

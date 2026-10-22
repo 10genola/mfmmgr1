@@ -360,7 +360,7 @@
     font-size: 1.6rem; color: #7EDBA8; margin-bottom: 8px;
   }
   #success-msg p {
-    color: rgba(255,255,255,0.65);
+    color: #d5e5dc;
     font-size: 14px; line-height: 1.7;
   }
 
@@ -372,7 +372,28 @@
     margin-bottom: 8px;
     color-scheme: light;
   }
-  .paypal-checkout-panel[hidden] { display: none; }
+  #success-msg [hidden] { display: none !important; }
+  .payment-option { text-align: left; border: 1px solid #b7ccbf; border-radius: 16px; padding: 24px; margin-top: 20px; }
+  .payment-option h3 { margin: 0 0 8px; font-size: 18px; }
+  .payment-total { font-size: 26px; font-weight: 700; }
+  #success-msg .payment-reference { font-size: 12px; overflow-wrap: anywhere; margin-top: 12px; }
+  #success-msg .online-option { background: #fff; color: #1f2937; border-color: #fff; }
+  #success-msg .online-option p { color: #465263; }
+  .online-option .paypal-checkout-panel { margin: 16px -8px -8px; padding: 0; }
+  .payment-choice, .coordinator-choice { width: 100%; padding: 13px 16px; border-radius: 10px; font: inherit; font-weight: 700; cursor: pointer; }
+  .payment-choice { background: #e6f4ec; color: #143b29; border: 1px solid #e6f4ec; margin-top: 16px; }
+  .coordinator-choice { background: transparent; color: #e3eee7; border: 1px solid #789684; margin-top: 28px; }
+  .payment-choice:hover, .coordinator-choice:hover { filter: brightness(1.08); }
+  .payment-choice:focus-visible, .coordinator-choice:focus-visible { outline: 3px solid #f6d87c; outline-offset: 4px; }
+  button:disabled { cursor: wait; opacity: .7; }
+  .payment-unavailable button:disabled { cursor: not-allowed; opacity: 1; }
+  .online-option .payment-choice { background: #ffc439; color: #172b4d; border-color: #ffc439; }
+  #success-msg .zelle-recipient { color: #fff; font-size: 18px; font-weight: 700; overflow-wrap: anywhere; margin: 12px 0; }
+  #payment-status:not(:empty) { padding: 14px 0; }
+  @media (max-width: 500px) {
+    #success-msg { padding: 36px 20px; }
+    .payment-option { padding: 20px 16px; }
+  }
 </style>
 </head>
 <body>
@@ -412,7 +433,7 @@
       </div>
       <div class="field">
         <label class="field-label" for="phone">Phone Number <span class="req">*</span></label>
-        <input type="tel" id="phone" placeholder="(555) 000-0000" autocomplete="tel"/>
+        <input type="tel" id="phone" placeholder="(555) 000-0000" autocomplete="tel" inputmode="numeric"/>
         <span class="field-error" id="err-phone">Please enter a valid 10-digit phone number.</span>
       </div>
     </div>
@@ -522,7 +543,7 @@
             <option>Pastor H (placeholder)</option>
             <option>Pastor I (placeholder)</option>
             <option>Pastor J (placeholder)</option>
-            <option>Pastor Kayode Ifebajo </option>
+            <option>Pastor K (placeholder)</option>
             <option>Pastor L (placeholder)</option>
             <option>Pastor M (placeholder)</option>
             <option>Pastor N (placeholder)</option>
@@ -607,7 +628,9 @@
       <div class="pay-icon">&#128179;</div>
       <h3>Registration Fee: $<span id="feeAmount">200</span>.00</h3>
       <p>
-        Click <strong>Save details & continue</strong> to save your details.
+        Pay <strong>$200.00 with Zelle</strong>, or <strong>$204.47 with PayPal or a card</strong><br/>
+        The additional $4.47 for PayPal and card payments helps cover transaction processing costs.
+        Choose your payment option after saving your details.
       </p>
       <button type="submit" class="submit-btn">Save details & continue &rarr;</button>
       <p class="submit-note">
@@ -625,15 +648,11 @@
 <!-- Success -->
 <div id="success-msg">
   <div class="check">&#9989;</div>
-  <h2>Registration Saved!</h2>
-  <p>
-    Thanks, <span id="successName">friend</span>! Your details have been recorded.<br/>
-    <strong style="color:#7EDBA8;">Final step:</strong> complete your payment below to secure your spot.<br/>
-    Your registration is confirmed only after payment is verified below.
-  </p>
-  <div id="paypal-button-container" style="margin: 28px auto 0; max-width: 340px;"></div>
-  <p style="margin-top:18px; font-size:12px; color:rgba(255,255,255,0.45);">
-    Please also submit your completed waiver forms to your youth leader.
+  <h2>Thank you for registering</h2>
+  <p>Please choose a payment option to complete your registration.</p>
+  <div id="paypal-button-container" style="margin: 24px auto 0; max-width: 460px;"></div>
+  <p style="margin-top:24px; font-size:13px; color:#d5e5dc;">
+    Please submit your completed waiver forms to your youth leader. We look forward to welcoming you!
   </p>
 </div>
 
@@ -644,22 +663,21 @@
 <script src="https://www.paypal.com/sdk/js?client-id=BAA7ZP3uBkDS49QFJL--yFKUhtuKpdwSaRVR5HLuvRxusxRc1yKyq-hFzBhmkb0hIfx5JDxWXX-lj8kqxo&currency=USD&disable-funding=paylater"></script>
 <script>
 // ============================================================
-// CONFIG — fill these three values in
+// Registration service and event settings
 // ============================================================
 const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxk_aui2w_V0KPDerkIFwZ5nwEnM7NBOlvu2NN-QhKSnebzWSD0uULlFI3Q_ACC5dvk/exec';   // from Apps Script "Deploy → Web app"
 const EVENT_PRICE      = '200.00';                        // registration fee in USD
-const EVENT_NAME       = 'MFM Youth and Young Adults Registration';
+const PAYMENT_VERSION  = 2; // Must match the deployed Apps Script payment options.
 // ============================================================
 
 // Keep displayed fee in sync with EVENT_PRICE
 document.getElementById('feeAmount').textContent = parseInt(EVENT_PRICE, 10);
 
-// Format US numbers without silently dropping extra digits or a pasted +1 prefix.
+// Keep at most ten local digits; accept a pasted US +1 country code.
 function formatPhone(value) {
-  if (!/^[+\d\s().-]*$/.test(value)) return value;
   let v = value.replace(/\D/g,'');
-  if (v.length === 11 && v.startsWith('1')) v = v.slice(1);
-  if (v.length > 10) return value; // Let validation flag it instead of changing the number.
+  if (v.length > 10 && v.startsWith('1')) v = v.slice(1);
+  v = v.slice(0,10);
   if(v.length>=7)      v = '('+v.slice(0,3)+') '+v.slice(3,6)+'-'+v.slice(6,10);
   else if(v.length>=4) v = '('+v.slice(0,3)+') '+v.slice(3);
   else if(v.length>0)  v = '('+v;
@@ -785,7 +803,7 @@ async function api(payload) {
     const response = await fetch(GOOGLE_SHEET_URL, {
       method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
       signal:controller.signal,
-      body:JSON.stringify({...payload,token:registrationToken()})
+      body:JSON.stringify({...payload,paymentVersion:PAYMENT_VERSION,token:registrationToken()})
     });
     if (!response.ok) throw Error('Server unavailable (HTTP '+response.status+').');
     const result = await response.json();
@@ -799,69 +817,139 @@ async function api(payload) {
 }
 function showSuccessAndPay(result) {
   document.getElementById('regForm').style.display='none';
-  const panel = document.getElementById('success-msg');
+  const panel=document.getElementById('success-msg');
   panel.style.display='block';
-  panel.querySelector('h2').textContent='Details saved · payment pending';
-  panel.querySelector('p').textContent='Registration reference: '+result.registrationId+'. Complete the $200 payment to confirm your registration.';
+  const heading=panel.querySelector('h2');
+  const intro=panel.querySelector('p');
+  heading.textContent='Thank you for registering';
+  intro.textContent='Your details are saved. Please choose a payment option below. Your registration will be confirmed once payment is verified.';
   const container=document.getElementById('paypal-button-container');
   container.replaceChildren();
-  const message=document.createElement('p');
+  function add(parent, tag, text, className) {
+    const el=document.createElement(tag);
+    if (text) el.textContent=text;
+    if (className) el.className=className;
+    parent.appendChild(el);
+    return el;
+  }
+  const message=add(container,'p');
+  message.id='payment-status';
   message.setAttribute('role','status');
-  container.appendChild(message);
-  const buttons=document.createElement('div');
-  buttons.className='paypal-checkout-panel';
-  container.appendChild(buttons);
+  add(container,'p','Registration reference: '+result.registrationId,'payment-reference');
+  const options=add(container,'div');
+  const online=add(options,'section',null,'payment-option online-option');
+  add(online,'h3','PayPal or debit / credit card');
+  const total=add(online,'div',null,'payment-total');
+  const breakdown=add(online,'p');
+  const buttons=add(online,'div',null,'paypal-checkout-panel');
+  const zelle=add(options,'section',null,'payment-option');
+  add(zelle,'h3','Zelle');
+  add(zelle,'div','$200.00','payment-total');
+  add(zelle,'p','Pay the registration fee through Zelle in your bank’s app.');
+  const chooseZelle=add(zelle,'button','Pay with Zelle','payment-choice');
+  chooseZelle.type='button';
+  const coordinator=add(options,'button','I have paid my youth coordinator','coordinator-choice');
+  coordinator.type='button';
+  const instructions=add(container,'section',null,'payment-option');
+  instructions.hidden=true;
+  add(instructions,'h3','Send $200.00 with Zelle');
+  const recipient=add(instructions,'p',null,'zelle-recipient');
+  add(instructions,'p','In your bank’s app, send $200.00 to the email above. Please include the participant’s name and registration reference in the memo, if space allows.');
+  add(instructions,'p','After sending your payment, let us know below. The church will confirm your registration after verifying receipt.');
+  const reportZelle=add(instructions,'button','I have sent my Zelle payment','payment-choice');
+  reportZelle.type='button';
   let checkoutClosed=false;
+  let busy=false;
+  function lockChoices(value) {
+    busy=value;
+    chooseZelle.disabled=value;
+    coordinator.disabled=value;
+    reportZelle.disabled=value;
+  }
   function display(state) {
     if (state.paid) {
       checkoutClosed=true;
-      panel.querySelector('h2').textContent='Registration confirmed';
-      panel.querySelector('p').textContent='Your payment has been verified. No further payment is needed.';
-      message.textContent='Payment verified: $200 USD. Reference: '+state.registrationId;
-      buttons.hidden=true;
+      options.hidden=true;
+      instructions.hidden=true;
       coordinator.remove();
+      heading.textContent='Registration confirmed';
+      intro.textContent='Thank you! Your payment has been verified. We look forward to welcoming you.';
+      message.textContent='Payment verified'+(state.paidAmount ? ': $'+Number(state.paidAmount).toFixed(2)+' USD.' : '.')+' No further payment is needed.';
     } else if (state.coordinatorReported) {
       checkoutClosed=true;
-      buttons.hidden=true;
-      coordinator.disabled=true;
-      coordinator.textContent='Awaiting coordinator verification';
-      message.textContent='Your coordinator payment report is saved. Registration remains pending until the organizer verifies receipt. You do not need to pay again online.';
+      options.hidden=true;
+      instructions.hidden=true;
+      heading.textContent='Awaiting coordinator verification';
+      intro.textContent='Thank you for letting us know.';
+      message.textContent='Your payment report has been saved. The church will confirm your registration after verifying receipt with your youth coordinator. Please do not pay again online.';
+    } else if (state.zelleSelected) {
+      checkoutClosed=true;
+      options.hidden=true;
+      instructions.hidden=state.zelleReported;
+      recipient.textContent=state.zelleRecipient;
+      heading.textContent=state.zelleReported ? 'Zelle payment reported' : 'Complete your Zelle payment';
+      intro.textContent=state.zelleReported ? 'Thank you for letting us know.' : 'Please follow the instructions below to send your registration payment.';
+      message.textContent=state.zelleReported ? 'Your payment report has been saved. Registration is pending while the church verifies receipt. Please do not send another payment.' : 'Zelle selected · $200.00. If you have already sent your payment, simply confirm that below.';
     } else if (state.retryPayment) {
       message.textContent='PayPal declined that payment method. Please choose another card or payment method to complete registration.';
-    } else message.textContent='Payment is not yet confirmed. If you already approved payment, refresh this page shortly to check again; do not make another payment.';
-  }
-  const coordinator=document.createElement('button');
-  coordinator.type='button';
-  coordinator.className='submit-btn';
-  coordinator.textContent='Payment made to your coordinator';
-  coordinator.style.marginTop='28px';
-  coordinator.onclick=async function(){
-    coordinator.disabled=true;
-    message.textContent='Saving coordinator payment report…';
-    try {
-      const state=await api({action:'coordinatorPayment'});
-      display(state);
-    } catch(e) {
-      message.textContent='Could not save the coordinator payment report. '+e.message;
-      coordinator.disabled=false;
+    } else {
+      message.textContent='Payment is not yet confirmed. If you already approved payment, refresh this page shortly to check again before making another payment.';
     }
-  };
-  container.appendChild(coordinator);
+  }
+  async function offlineAction(action, pendingText) {
+    if (busy) return;
+    lockChoices(true);
+    message.textContent=pendingText;
+    try { display(await api({action})); }
+    catch(e) { message.textContent='We could not confirm this update. '+e.message+' Please refresh before trying again.'; }
+    finally { lockChoices(false); }
+  }
+  chooseZelle.onclick=()=>offlineAction('selectZelle','Preparing your Zelle instructions…');
+  reportZelle.onclick=()=>offlineAction('zellePayment','Saving your Zelle payment report…');
+  coordinator.onclick=()=>offlineAction('coordinatorPayment','Saving your coordinator payment report…');
 
   if (result.paid || result.coordinatorReported) {display(result);return;}
+  const paymentsReady=result.paymentVersion===PAYMENT_VERSION && ['200.00','204.47'].includes(result.checkoutAmount);
+  const shownAmount=paymentsReady ? result.checkoutAmount : '204.47';
+  total.textContent='$'+shownAmount;
+  breakdown.textContent=shownAmount==='204.47' ? '$200.00 registration + $4.47 processing fee to help cover PayPal and card transaction costs.' : 'Your existing checkout remains $200.00, with no added processing fee.';
+  // Show the choices even during setup; keep payment actions disabled until the
+  // service can enforce the displayed amount and record the selected method.
+  if (!paymentsReady) {
+    options.className='payment-unavailable';
+    lockChoices(true);
+    coordinator.hidden=true;
+    intro.textContent='Your details are saved. You can review the payment options below. Registration will be confirmed after your payment is verified.';
+    message.textContent='Payments are temporarily unavailable. Please wait for payment collection to open before sending a payment.';
+    const unavailable=add(buttons,'button','Pay with PayPal or card','payment-choice');
+    unavailable.type='button';
+    unavailable.disabled=true;
+    unavailable.setAttribute('aria-describedby','payment-status');
+    chooseZelle.setAttribute('aria-describedby','payment-status');
+    return;
+  }
+  if (result.zelleSelected) {display(result);return;}
   if (result.retryPayment) display(result);
-  if (typeof paypal==='undefined') {message.textContent='PayPal is not configured or could not load. Your details are saved. Contact the organizer before paying elsewhere.';return;}
-  let checkoutError = '';
+  if (typeof paypal==='undefined') {
+    add(online,'p','PayPal could not load. Refresh to try again, or choose Zelle below.');
+    return;
+  }
+  let checkoutError='';
   paypal.Buttons({
     style:{layout:'vertical',color:'gold',shape:'pill',label:'pay'},
     createOrder:async function(){
       checkoutError='';
+      if (busy || checkoutClosed) throw Error('Please finish the current payment selection first.');
+      lockChoices(true);
       message.textContent='Connecting to PayPal…';
       try {
         const response=await api({action:'createOrder'});
-        if (response.paid || response.coordinatorReported) {
+        if (response.paid || response.coordinatorReported || response.zelleSelected) {
           display(response);
           throw Error('This registration no longer needs online checkout.');
+        }
+        if (response.paymentVersion!==PAYMENT_VERSION || response.checkoutAmount!==result.checkoutAmount) {
+          throw Error('The payment options have changed. Please refresh to review the total.');
         }
         if (!response.orderId) throw Error('The server did not return a PayPal order ID.');
         message.textContent='Continue in the PayPal checkout window.';
@@ -870,26 +958,30 @@ function showSuccessAndPay(result) {
         checkoutError=e.message;
         if (!checkoutClosed) message.textContent='Could not open checkout: '+checkoutError;
         throw e;
-      }
+      } finally { lockChoices(false); }
     },
     onApprove:async function(data,actions){
+      if (checkoutClosed) return;
+      lockChoices(true);
       message.textContent='Verifying payment…';
       try {
         const state=await api({action:'confirmPayment'});
         display(state);
         if (state.retryPayment && actions && typeof actions.restart==='function') {
+          lockChoices(false);
           return await actions.restart();
         }
       }
-      catch(e){message.textContent='Payment status is not confirmed. Refresh this page to check payment status before trying to pay again. '+e.message;}
+      catch(e){message.textContent='Payment is not yet confirmed. Please refresh before paying again. '+e.message;}
+      finally { lockChoices(false); }
     },
-    onCancel:function(){if (!checkoutClosed) message.textContent='Checkout cancelled. Registration remains pending until payment is verified.';},
+    onCancel:function(){if (!checkoutClosed) message.textContent='Checkout cancelled. Your registration is saved and awaits payment.';},
     onError:function(err){
       if (checkoutClosed) return;
-      message.textContent='Could not open checkout: '+(checkoutError || (err && err.message) || 'PayPal could not open. Check that pop-ups are allowed and use an HTTP or HTTPS page.')+' Your registration remains pending.';
+      message.textContent='Could not open checkout: '+(checkoutError || (err && err.message) || 'PayPal could not open. Please allow pop-ups and try again.')+' Your registration remains pending.';
     }
   }).render(buttons).catch(function(err){
-    message.textContent='PayPal button could not load: '+(err.message || 'Unknown loading error.');
+    if (!checkoutClosed) message.textContent='PayPal could not load: '+(err.message || 'Please refresh to try again.');
   });
 }
 if (sessionStorage.getItem('mfm-registration-saved')==='yes') {

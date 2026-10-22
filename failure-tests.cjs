@@ -8,6 +8,13 @@ const moduleBox = {exports:{}};
 vm.runInNewContext(harness + '\nmodule.exports = {fixture, C};', {require, __dirname:appDir, module:moduleBox, console});
 const {fixture, C} = moduleBox.exports;
 const scenarios = {
+  selectZelle: {action:'selectZelle', setup:f=>{ f.create(); f.order().status='APPROVED'; }, check:f=>{
+    assert.equal(f.row()[C.status],'Zelle Pending');assert.equal(f.count('capture'),0);
+    f.ctx.recoverPendingPayments();assert.equal(f.count('capture'),0);assert.equal(f.call('createOrder').ok,false);
+  }},
+  reportZelle: {action:'zellePayment', setup:f=>{f.call('selectZelle');}, check:f=>{
+    assert.equal(f.row()[C.status],'Zelle');assert.equal(f.call('status').paid,false);assert.equal(f.orders.size,0);
+  }},
   create: {action:'createOrder', setup:f=>{}, check:f=>{
     assert.equal(f.orders.size, 1); assert.equal(f.row()[C.order], 'ORDER1');
     assert.equal(f.count('capture'), 0); assert.equal(f.row()[C.status], 'Pending');

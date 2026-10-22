@@ -1,6 +1,10 @@
 # MFM registration
 
-Tuition: **$200 USD**. Read **SETUP.md** for installation and updates.
+Registration: **$200.00 with Zelle** to **giving@mfmnewyork.org**, or **$204.47 with PayPal / debit or credit card** ($200.00 registration + $4.47 processing fee).
+
+Zelle payments are confirmed by the church after checking bank receipt. A member's payment report does not automatically mark the registration Paid.
+
+Read **SETUP.md** for installation and updates. Deploy the updated Apps Script backend and the updated HTML together; both are required for the new options.
 
 - **index.html** — registration form; upload to the static website host.
 - **google-apps-script.js** — backend; paste into Google Apps Script and deploy a new version.

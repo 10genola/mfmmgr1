@@ -1,6 +1,10 @@
 /** MFM registration. Configure Script Properties, then run installRecoveryTrigger(). */
-const EXPECTED_AMOUNT = '200.00';
+const REGISTRATION_AMOUNT = '200.00';
+const PROCESSING_FEE = '4.47';
+const EXPECTED_AMOUNT = '204.47';
 const EXPECTED_CURRENCY = 'USD';
+const PAYMENT_VERSION = 2;
+const ZELLE_RECIPIENT = 'giving@mfmnewyork.org';
 const COLUMNS = [
   'Timestamp', 'First Name', 'Last Name', 'Email', 'Phone', 'Gender', 'Grade',
   'T-Shirt', 'State', 'Has Coordinator', 'Branch Pastor', 'Waiver Done',
@@ -109,9 +113,30 @@ function registrationState(r) {
   const attempt = captureAttempt(r);
   return {ok:true, registrationId:r.values[COL.id], paid:r.values[COL.status] === 'Paid',
     coordinatorReported:r.values[COL.status] === 'Coordinator',
+    zelleSelected:['Zelle Pending','Zelle'].includes(r.values[COL.status]),
+    zelleReported:r.values[COL.status] === 'Zelle',
+    paymentVersion:PAYMENT_VERSION, registrationAmount:REGISTRATION_AMOUNT,
+    checkoutAmount:onlineAmount(r), zelleRecipient:ZELLE_RECIPIENT,
+    paidAmount:r.values[COL.amount] ? String(r.values[COL.amount]) : '',
     retryPayment:r.values[COL.status] === 'Pending' && attempt.retryRequired,
     paymentIssue:attempt.issue || ''};
 }
+
+// Keep the price with the existing PayPal context rather than adding columns
+// over organizer Notes. Orders started before this release retain their $200 quote.
+function checkoutContext(r) {
+  const saved = String(r.values[COL.context] || '');
+  if (!saved.startsWith('{')) return {account:saved, amount:
+    saved || r.values[COL.order] || r.values[COL.createKey] ? REGISTRATION_AMOUNT : EXPECTED_AMOUNT};
+  let value;
+  try { value = JSON.parse(saved); } catch (e) { throw Error('Payment tracking needs organizer review.'); }
+  if (!value || value.version !== PAYMENT_VERSION || typeof value.account !== 'string' || !value.account ||
+      value.currency !== EXPECTED_CURRENCY || ![REGISTRATION_AMOUNT, EXPECTED_AMOUNT].includes(value.amount)) {
+    throw Error('Payment tracking needs organizer review.');
+  }
+  return value;
+}
+function onlineAmount(r) { return checkoutContext(r).amount; }
 function validateRegistration(d) {
   const values = {};
   FORM_FIELDS.forEach(key => {
@@ -208,7 +233,8 @@ function updatePayment(op, change) {
   });
 }
 function assertContext(r, c) {
-  if (r.values[COL.context] && r.values[COL.context] !== c.context) {
+  const saved = checkoutContext(r);
+  if (saved.account && saved.account !== c.context) {
     throw Error('This checkout belongs to a different PayPal configuration. Contact the organizer.');
   }
 }
@@ -261,11 +287,12 @@ function validateBinding(order, r, c) {
   const unit = order.purchase_units[0];
   if (unit.custom_id !== r.values[COL.id]) throw Error('Payment belongs to another registration.');
   if (!unit.payee || unit.payee.merchant_id !== c.merchant) throw Error('Payment recipient does not match.');
-  if (!unit.amount || unit.amount.currency_code !== EXPECTED_CURRENCY || unit.amount.value !== EXPECTED_AMOUNT) {
-    throw Error('Payment must be exactly ' + EXPECTED_AMOUNT + ' ' + EXPECTED_CURRENCY + '.');
+  const expected = onlineAmount(r);
+  if (!unit.amount || unit.amount.currency_code !== EXPECTED_CURRENCY || unit.amount.value !== expected) {
+    throw Error('Payment must be exactly ' + expected + ' ' + EXPECTED_CURRENCY + '.');
   }
 }
-function validateOrder(order, registrationId, merchantId) {
+function validateOrder(order, registrationId, merchantId, expected) {
   if (order.status !== 'COMPLETED') throw Error('Payment is not completed.');
   if (!order.purchase_units || order.purchase_units.length !== 1) throw Error('Unexpected purchase units.');
   const unit = order.purchase_units[0];
@@ -275,8 +302,8 @@ function validateOrder(order, registrationId, merchantId) {
   if (!captures || captures.length !== 1) throw Error('Unexpected payment captures.');
   const capture = captures[0];
   if (capture.status !== 'COMPLETED' || !capture.id) throw Error('Payment capture is not completed.');
-  if (!capture.amount || capture.amount.currency_code !== EXPECTED_CURRENCY || capture.amount.value !== EXPECTED_AMOUNT) {
-    throw Error('Payment must be exactly ' + EXPECTED_AMOUNT + ' ' + EXPECTED_CURRENCY + '.');
+  if (!capture.amount || capture.amount.currency_code !== EXPECTED_CURRENCY || capture.amount.value !== expected) {
+    throw Error('Payment must be exactly ' + expected + ' ' + EXPECTED_CURRENCY + '.');
   }
   return capture;
 }
@@ -290,11 +317,11 @@ function recordOrder(op, order) {
   if (failedCapture(order)) return requirePaymentRetry(op, 'PAYMENT_DECLINED');
   return registrationState(updatePayment(op, (s, r) => {
     validateBinding(order, r, op.config);
-    r.values[COL.context] = op.config.context;
+    if (!r.values[COL.context]) r.values[COL.context] = op.config.context;
     r.values[COL.checked] = new Date().toISOString();
     r.values[COL.error] = captureAttempt(r).retryRequired ? 'Payment declined. The payer must choose another payment method.' : '';
     if (order.status !== 'COMPLETED') return;
-    const capture = validateOrder(order, r.values[COL.id], op.config.merchant);
+    const capture = validateOrder(order, r.values[COL.id], op.config.merchant, onlineAmount(r));
     const duplicate = registrationRows(s).some((v, i) => i > 0 && i + 1 !== r.number &&
       (v[COL.order] === order.id || v[COL.capture] === capture.id ||
        String(v[COL.history] || '').split(',').includes(order.id)));
@@ -309,7 +336,7 @@ function recordOrder(op, order) {
 }
 function reconcile(op, allowCapture, buyerApproved) {
   let r = updatePayment(op);
-  if (r.values[COL.status] === 'Paid' || !r.values[COL.order]) return registrationState(r);
+  if (['Paid','Coordinator','Zelle Pending','Zelle'].includes(r.values[COL.status]) || !r.values[COL.order]) return registrationState(r);
   let order = loadOrder(op, r);
   const previousAttempt = captureAttempt(r);
   if (allowCapture && (!previousAttempt.retryRequired || buyerApproved) &&
@@ -343,17 +370,31 @@ function reconcile(op, allowCapture, buyerApproved) {
   return state;
 }
 function coordinatorPayment(op) {
-  // Read-only PayPal reconciliation here: choosing a coordinator must never initiate a charge.
+  return selectOfflinePayment(op, 'Coordinator');
+}
+function selectOfflinePayment(op, status) {
+  // Close online checkout BEFORE showing Zelle transfer instructions. Reconcile
+  // read-only: selecting another payment route must never initiate a PayPal charge.
   const state = reconcile(op, false);
-  if (state.paid || state.coordinatorReported) return state;
-  if (state.paymentProcessing) throw Error('An online payment is still processing. Refresh to check it before paying your coordinator.');
+  if (state.paid || state.coordinatorReported || state.zelleSelected) return state;
+  if (state.paymentProcessing) throw Error('An online payment is still processing. Please refresh to check it before using another payment method.');
   return registrationState(updatePayment(op, (s, r) => {
     requirePending(r);
     if ((r.values[COL.captureRequested] && !captureAttempt(r).retryRequired) ||
         (r.values[COL.createKey] && !r.values[COL.order])) {
-      throw Error('An online payment request is unresolved. Refresh to check it or contact the organizer before paying your coordinator.');
+      throw Error('An online payment request is unresolved. Please refresh or contact your youth coordinator before using another payment method.');
     }
-    r.values[COL.status] = 'Coordinator';
+    r.values[COL.status] = status;
+    r.values[COL.checked] = new Date().toISOString();
+    r.values[COL.error] = '';
+  }));
+}
+function zellePayment(op) {
+  return registrationState(updatePayment(op, (s, r) => {
+    if (r.values[COL.status] === 'Paid' || r.values[COL.status] === 'Zelle') return;
+    if (r.values[COL.status] !== 'Zelle Pending') throw Error('Please choose Zelle before reporting your payment.');
+    r.values[COL.status] = 'Zelle'; // Self-report only. A church organizer must verify bank receipt.
+    r.values[COL.checked] = new Date().toISOString();
     r.values[COL.error] = '';
   }));
 }
@@ -365,6 +406,8 @@ function retireOrder(op, order) {
     const history = String(r.values[COL.history] || '').split(',').filter(Boolean);
     history.push(order.id);
     r.values[COL.history] = history.join(',');
+    if (!r.values[COL.context]) r.values[COL.context] = JSON.stringify({version:PAYMENT_VERSION,
+      account:op.config.context, amount:onlineAmount(r), currency:EXPECTED_CURRENCY});
     r.values[COL.order] = '';
     r.values[COL.createKey] = '';
     r.values[COL.createAt] = '';
@@ -402,17 +445,21 @@ function createOrder(op) {
           order = null;
         }
       }
-      if (order) return {ok:true, orderId:order.id};
+      if (order) return {...registrationState(r), orderId:order.id};
     }
   }
   let firstAttempt = false;
+  let previousContext = '';
   r = updatePayment(op, (s, fresh) => {
     requirePending(fresh);
     if (!fresh.values[COL.createKey]) {
       firstAttempt = true;
+      previousContext = fresh.values[COL.context];
+      const quotedAmount = onlineAmount(fresh);
       fresh.values[COL.createKey] = fresh.values[COL.history] ? Utilities.getUuid() : 'create-' + fresh.values[COL.id];
       fresh.values[COL.createAt] = new Date().toISOString();
-      fresh.values[COL.context] = op.config.context;
+      fresh.values[COL.context] = JSON.stringify({version:PAYMENT_VERSION, account:op.config.context,
+        amount:quotedAmount, currency:EXPECTED_CURRENCY});
     }
   });
   const started = Date.parse(r.values[COL.createAt]);
@@ -424,7 +471,9 @@ function createOrder(op) {
     order = paypal('/v2/checkout/orders', 'post', {
       intent:'CAPTURE', payer:{email_address:String(r.values[3]).trim()},
       purchase_units:[{custom_id:r.values[COL.id], payee:{merchant_id:op.config.merchant},
-        description:'MFM Youth Retreat registration', amount:{currency_code:EXPECTED_CURRENCY, value:EXPECTED_AMOUNT}}]
+        description:onlineAmount(r) === EXPECTED_AMOUNT ?
+          'MFM Youth & Young Adults event: $'+REGISTRATION_AMOUNT+' registration + $'+PROCESSING_FEE+' processing fee' : 'MFM Youth & Young Adults event registration',
+        amount:{currency_code:EXPECTED_CURRENCY, value:onlineAmount(r)}}]
     }, r.values[COL.createKey], op.config);
   } catch (e) {
     // Authentication can fail before PayPal receives an order request. Only clear
@@ -433,18 +482,18 @@ function createOrder(op) {
       updatePayment(op, (s, fresh) => {
         fresh.values[COL.createKey] = '';
         fresh.values[COL.createAt] = '';
-        fresh.values[COL.context] = '';
+        fresh.values[COL.context] = previousContext || '';
       });
     }
     throw e;
   }
   if (!order.id || typeof order.id !== 'string' || !/^[A-Z0-9]+$/.test(order.id)) throw Error('PayPal did not return a valid order ID.');
-  updatePayment(op, (s, fresh) => {
+  r = updatePayment(op, (s, fresh) => {
     requirePending(fresh);
     fresh.values[COL.order] = order.id;
     fresh.values[COL.error] = '';
   });
-  return {ok:true, orderId:order.id};
+  return {...registrationState(r), orderId:order.id};
 }
 
 function doPost(e) {
@@ -457,10 +506,15 @@ function doPost(e) {
     const c = config();
     let result;
     if (d.action === 'register') result = register(d, hash, c);
-    else if (['createOrder','coordinatorPayment','confirmPayment','status'].includes(d.action)) {
+    else if (['createOrder','coordinatorPayment','selectZelle','zellePayment','confirmPayment','status'].includes(d.action)) {
+      if (['createOrder','selectZelle','zellePayment'].includes(d.action) && d.paymentVersion !== PAYMENT_VERSION) {
+        throw Error('Payment options have changed. Please refresh this page to view the current amounts.');
+      }
       result = withPayment(hash, c, op => {
         if (d.action === 'createOrder') return createOrder(op);
         if (d.action === 'coordinatorPayment') return coordinatorPayment(op);
+        if (d.action === 'selectZelle') return selectOfflinePayment(op, 'Zelle Pending');
+        if (d.action === 'zellePayment') return zellePayment(op);
         return reconcile(op, true, d.action === 'confirmPayment');
       });
     } else throw Error('Unknown action.');
