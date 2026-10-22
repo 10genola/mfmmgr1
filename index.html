@@ -199,7 +199,19 @@
 
   /* TOGGLE (radio pill) */
   .toggle-group { display: flex; gap: 10px; flex-wrap: wrap; }
-  .toggle-group input[type="radio"] { display: none; }
+  .toggle-group input[type="radio"], .size-group input[type="radio"] {
+    position: absolute;
+    width: 1px; height: 1px;
+    margin: -1px; padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .toggle-group input[type="radio"]:focus-visible + label,
+  .size-group input[type="radio"]:focus-visible + label {
+    outline: 3px solid var(--navy-light);
+    outline-offset: 3px;
+  }
   .toggle-group label {
     padding: 10px 22px;
     border: 1.5px solid var(--gray-200);
@@ -222,7 +234,6 @@
 
   /* SIZE SWATCHES */
   .size-group { display: flex; gap: 8px; flex-wrap: wrap; }
-  .size-group input[type="radio"] { display: none; }
   .size-group label {
     width: 52px; height: 44px;
     display: flex; align-items: center; justify-content: center;
@@ -352,6 +363,16 @@
     color: rgba(255,255,255,0.65);
     font-size: 14px; line-height: 1.7;
   }
+
+  .paypal-checkout-panel {
+    background: #ffffff;
+    color: #1f2937;
+    padding: 20px 16px 12px;
+    border-radius: 16px;
+    margin-bottom: 8px;
+    color-scheme: light;
+  }
+  .paypal-checkout-panel[hidden] { display: none; }
 </style>
 </head>
 <body>
@@ -586,10 +607,9 @@
       <div class="pay-icon">&#128179;</div>
       <h3>Registration Fee: $<span id="feeAmount">200</span>.00</h3>
       <p>
-        Click <strong>Complete Registration</strong> to save your details,<br/>
-        then pay securely via PayPal on the next step.
+        Click <strong>Save details & continue</strong> to save your details.
       </p>
-      <button type="submit" class="submit-btn">Complete Registration &rarr;</button>
+      <button type="submit" class="submit-btn">Save details & continue &rarr;</button>
       <p class="submit-note">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0">
           <rect x="3" y="11" width="18" height="11" rx="2"/>
@@ -609,7 +629,7 @@
   <p>
     Thanks, <span id="successName">friend</span>! Your details have been recorded.<br/>
     <strong style="color:#7EDBA8;">Final step:</strong> complete your payment below to secure your spot.<br/>
-    A confirmation email will follow once payment is received.
+    Your registration is confirmed only after payment is verified below.
   </p>
   <div id="paypal-button-container" style="margin: 28px auto 0; max-width: 340px;"></div>
   <p style="margin-top:18px; font-size:12px; color:rgba(255,255,255,0.45);">
@@ -620,13 +640,13 @@
 </div>
 </div>
 
-<!-- PayPal SDK — replace YOUR_PAYPAL_CLIENT_ID with your live or sandbox client ID -->
-<script src="https://www.paypal.com/sdk/js?client-id=YOUR_PAYPAL_CLIENT_ID&currency=USD"></script>
+<!-- PayPal SDK — configured Client ID; backend must use the same app and environment. -->
+<script src="https://www.paypal.com/sdk/js?client-id=BAA7ZP3uBkDS49QFJL--yFKUhtuKpdwSaRVR5HLuvRxusxRc1yKyq-hFzBhmkb0hIfx5JDxWXX-lj8kqxo&currency=USD&disable-funding=paylater"></script>
 <script>
 // ============================================================
 // CONFIG — fill these three values in
 // ============================================================
-const GOOGLE_SHEET_URL = 'YOUR_GOOGLE_APPS_SCRIPT_URL';   // from Apps Script "Deploy → Web app"
+const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxk_aui2w_V0KPDerkIFwZ5nwEnM7NBOlvu2NN-QhKSnebzWSD0uULlFI3Q_ACC5dvk/exec';   // from Apps Script "Deploy → Web app"
 const EVENT_PRICE      = '200.00';                        // registration fee in USD
 const EVENT_NAME       = 'MFM Youth and Young Adults Registration';
 // ============================================================
@@ -634,13 +654,19 @@ const EVENT_NAME       = 'MFM Youth and Young Adults Registration';
 // Keep displayed fee in sync with EVENT_PRICE
 document.getElementById('feeAmount').textContent = parseInt(EVENT_PRICE, 10);
 
-// Phone formatter
-document.getElementById('phone').addEventListener('input', function(e){
-  let v = e.target.value.replace(/\D/g,'');
+// Format US numbers without silently dropping extra digits or a pasted +1 prefix.
+function formatPhone(value) {
+  if (!/^[+\d\s().-]*$/.test(value)) return value;
+  let v = value.replace(/\D/g,'');
+  if (v.length === 11 && v.startsWith('1')) v = v.slice(1);
+  if (v.length > 10) return value; // Let validation flag it instead of changing the number.
   if(v.length>=7)      v = '('+v.slice(0,3)+') '+v.slice(3,6)+'-'+v.slice(6,10);
   else if(v.length>=4) v = '('+v.slice(0,3)+') '+v.slice(3);
   else if(v.length>0)  v = '('+v;
-  e.target.value = v;
+  return v;
+}
+document.getElementById('phone').addEventListener('input', function(e){
+  e.target.value = formatPhone(e.target.value);
 });
 
 // Helpers
@@ -675,7 +701,7 @@ document.getElementById('regForm').addEventListener('submit', function(e){
     {id:'firstName', fn:function(v){return v.trim().length>0;}},
     {id:'lastName',  fn:function(v){return v.trim().length>0;}},
     {id:'email',     fn:function(v){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);}},
-    {id:'phone',     fn:function(v){return v.replace(/\D/g,'').length>=10;}},
+    {id:'phone',     fn:function(v){return /^[\d\s().-]+$/.test(v) && v.replace(/\D/g,'').length===10;}},
     {id:'grade',     fn:function(v){return v!=='';}},
     {id:'state',     fn:function(v){return v!=='';}},
     {id:'pastor',    fn:function(v){return v!=='';}},
@@ -731,99 +757,149 @@ document.getElementById('regForm').addEventListener('submit', function(e){
   submitBtn.disabled = true;
   submitBtn.textContent = 'Saving...';
 
-  // Send to Google Sheets via Apps Script
-  // Using text/plain content-type avoids a CORS preflight (Apps Script-friendly)
-  fetch(GOOGLE_SHEET_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(data)
-  }).then(function(){
-    showSuccessAndPay(data);
+  api({action:'register', ...data}).then(function(result){
+    sessionStorage.setItem('mfm-registration-saved','yes');
+    showSuccessAndPay(result);
   }).catch(function(err){
-    console.error('Save failed:', err);
-    // Still let them pay — we don't want to lose a registration over a network blip
-    showSuccessAndPay(data);
+    alert('Registration could not be confirmed as saved. '+err.message+' Retry with the same details.');
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Save details & continue →';
   });
 });
 
-function showSuccessAndPay(data) {
-  document.getElementById('regForm').style.display = 'none';
-  document.getElementById('success-msg').style.display = 'block';
-  document.getElementById('successName').textContent = data.firstName;
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-
-  // Render PayPal button
-  if (typeof paypal === 'undefined') {
-    document.getElementById('paypal-button-container').innerHTML =
-      '<p style="color:#ffb;">PayPal could not load. Please contact your youth leader to pay.</p>';
-    return;
+// A random bearer token identifies one registration, including retries and reloads.
+// It stays in this browser tab; never put it in URLs or send it to PayPal.
+function registrationToken() {
+  let token = sessionStorage.getItem('mfm-registration-token');
+  if (!token) {
+    token = Array.from(crypto.getRandomValues(new Uint8Array(32)), b=>b.toString(16).padStart(2,'0')).join('');
+    sessionStorage.setItem('mfm-registration-token',token);
   }
-
-  paypal.Buttons({
-    style: { layout: 'vertical', color: 'gold', shape: 'pill', label: 'pay' },
-    createOrder: function(d, actions) {
-      return actions.order.create({
-        purchase_units: [{
-          description: EVENT_NAME + ' — ' + data.firstName + ' ' + data.lastName,
-          amount: { value: EVENT_PRICE }
-        }]
-      });
-    },
-    onApprove: function(d, actions) {
-      return actions.order.capture().then(function(details) {
-        var container = document.getElementById('paypal-button-container');
-        container.innerHTML =
-          '<div style="color:rgba(255,255,255,0.7); padding:18px;">Verifying payment with PayPal…</div>';
-
-        // Browser sends ONLY the order ID. The Apps Script asks PayPal directly
-        // whether the order is real and completed before marking the Sheet.
-        return fetch(GOOGLE_SHEET_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            confirmPayment: true,
-            email: data.email,
-            paypalOrderId: details.id
-          })
-        })
-        .then(function(r){ return r.json(); })
-        .then(function(result){
-          if (result.ok) {
-            container.innerHTML =
-              '<div style="background:rgba(126,219,168,0.15); border:1px solid rgba(126,219,168,0.4); ' +
-              'border-radius:10px; padding:18px; color:#7EDBA8; font-weight:600;">' +
-              '✓ Payment verified — thank you, ' + details.payer.name.given_name + '!' +
-              '</div>';
-          } else {
-            container.innerHTML =
-              '<div style="background:rgba(217,79,79,0.2); border:1px solid rgba(217,79,79,0.5); ' +
-              'border-radius:10px; padding:18px; color:#FFB4B4; font-size:13px;">' +
-              '⚠ Payment received but could not be verified automatically.<br>' +
-              'Order ID: <code>' + details.id + '</code><br>' +
-              'Please contact your youth leader with this order ID.' +
-              '</div>';
-            console.error('Verification failed:', result.error);
-          }
-        })
-        .catch(function(err){
-          console.error('Network error during verification:', err);
-          container.innerHTML =
-            '<div style="background:rgba(217,79,79,0.2); border:1px solid rgba(217,79,79,0.5); ' +
-            'border-radius:10px; padding:18px; color:#FFB4B4; font-size:13px;">' +
-            '⚠ Payment received but verification request failed.<br>' +
-            'Order ID: <code>' + details.id + '</code><br>' +
-            'Please contact your youth leader with this order ID.' +
-            '</div>';
-        });
-      });
-    },
-    onError: function(err) {
-      console.error('PayPal error:', err);
-      alert('Something went wrong with PayPal. Please try again or contact your youth leader.');
-    }
-  }).render('#paypal-button-container');
+  return token;
 }
+async function api(payload) {
+  if (GOOGLE_SHEET_URL.includes('YOUR_')) throw Error('The organizer has not connected registration yet.');
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(),45000);
+  try {
+    const response = await fetch(GOOGLE_SHEET_URL, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      signal:controller.signal,
+      body:JSON.stringify({...payload,token:registrationToken()})
+    });
+    if (!response.ok) throw Error('Server unavailable (HTTP '+response.status+').');
+    const result = await response.json();
+    if (!result.ok) throw Error(result.error || 'Request failed.');
+    return result;
+  } catch(e) {
+    if (e.name==='AbortError') throw Error('The registration server did not respond within 45 seconds. The request may still finish. Refresh this page to check payment status before retrying.');
+    throw e;
+  } finally { clearTimeout(timer); }
+
+}
+function showSuccessAndPay(result) {
+  document.getElementById('regForm').style.display='none';
+  const panel = document.getElementById('success-msg');
+  panel.style.display='block';
+  panel.querySelector('h2').textContent='Details saved · payment pending';
+  panel.querySelector('p').textContent='Registration reference: '+result.registrationId+'. Complete the $200 payment to confirm your registration.';
+  const container=document.getElementById('paypal-button-container');
+  container.replaceChildren();
+  const message=document.createElement('p');
+  message.setAttribute('role','status');
+  container.appendChild(message);
+  const buttons=document.createElement('div');
+  buttons.className='paypal-checkout-panel';
+  container.appendChild(buttons);
+  let checkoutClosed=false;
+  function display(state) {
+    if (state.paid) {
+      checkoutClosed=true;
+      panel.querySelector('h2').textContent='Registration confirmed';
+      panel.querySelector('p').textContent='Your payment has been verified. No further payment is needed.';
+      message.textContent='Payment verified: $200 USD. Reference: '+state.registrationId;
+      buttons.hidden=true;
+      coordinator.remove();
+    } else if (state.coordinatorReported) {
+      checkoutClosed=true;
+      buttons.hidden=true;
+      coordinator.disabled=true;
+      coordinator.textContent='Awaiting coordinator verification';
+      message.textContent='Your coordinator payment report is saved. Registration remains pending until the organizer verifies receipt. You do not need to pay again online.';
+    } else if (state.retryPayment) {
+      message.textContent='PayPal declined that payment method. Please choose another card or payment method to complete registration.';
+    } else message.textContent='Payment is not yet confirmed. If you already approved payment, refresh this page shortly to check again; do not make another payment.';
+  }
+  const coordinator=document.createElement('button');
+  coordinator.type='button';
+  coordinator.className='submit-btn';
+  coordinator.textContent='Payment made to your coordinator';
+  coordinator.style.marginTop='28px';
+  coordinator.onclick=async function(){
+    coordinator.disabled=true;
+    message.textContent='Saving coordinator payment report…';
+    try {
+      const state=await api({action:'coordinatorPayment'});
+      display(state);
+    } catch(e) {
+      message.textContent='Could not save the coordinator payment report. '+e.message;
+      coordinator.disabled=false;
+    }
+  };
+  container.appendChild(coordinator);
+
+  if (result.paid || result.coordinatorReported) {display(result);return;}
+  if (result.retryPayment) display(result);
+  if (typeof paypal==='undefined') {message.textContent='PayPal is not configured or could not load. Your details are saved. Contact the organizer before paying elsewhere.';return;}
+  let checkoutError = '';
+  paypal.Buttons({
+    style:{layout:'vertical',color:'gold',shape:'pill',label:'pay'},
+    createOrder:async function(){
+      checkoutError='';
+      message.textContent='Connecting to PayPal…';
+      try {
+        const response=await api({action:'createOrder'});
+        if (response.paid || response.coordinatorReported) {
+          display(response);
+          throw Error('This registration no longer needs online checkout.');
+        }
+        if (!response.orderId) throw Error('The server did not return a PayPal order ID.');
+        message.textContent='Continue in the PayPal checkout window.';
+        return response.orderId;
+      } catch(e) {
+        checkoutError=e.message;
+        if (!checkoutClosed) message.textContent='Could not open checkout: '+checkoutError;
+        throw e;
+      }
+    },
+    onApprove:async function(data,actions){
+      message.textContent='Verifying payment…';
+      try {
+        const state=await api({action:'confirmPayment'});
+        display(state);
+        if (state.retryPayment && actions && typeof actions.restart==='function') {
+          return await actions.restart();
+        }
+      }
+      catch(e){message.textContent='Payment status is not confirmed. Refresh this page to check payment status before trying to pay again. '+e.message;}
+    },
+    onCancel:function(){if (!checkoutClosed) message.textContent='Checkout cancelled. Registration remains pending until payment is verified.';},
+    onError:function(err){
+      if (checkoutClosed) return;
+      message.textContent='Could not open checkout: '+(checkoutError || (err && err.message) || 'PayPal could not open. Check that pop-ups are allowed and use an HTTP or HTTPS page.')+' Your registration remains pending.';
+    }
+  }).render(buttons).catch(function(err){
+    message.textContent='PayPal button could not load: '+(err.message || 'Unknown loading error.');
+  });
+}
+if (sessionStorage.getItem('mfm-registration-saved')==='yes') {
+  api({action:'status'}).then(showSuccessAndPay).catch(function(e){
+    const notice=document.getElementById('val-summary');
+    notice.textContent='Could not restore your pending registration: '+e.message+' Retry saving to recover the same registration.';
+    notice.style.display='block';
+  });
+}
+
 </script>
 </body>
 </html>

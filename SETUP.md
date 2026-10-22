@@ -1,163 +1,101 @@
-# MFM Youth Retreat — Setup Guide
+# MFM registration setup
 
-Three things to set up, in this order:
+Tuition remains **$200.00 USD**. The form design and existing payment choices are retained. This package updates the local POC, not the separate summer-camp Site.
 
-1. **PayPal sandbox credentials** (you need both Client ID *and* Client Secret)
-2. **Google Sheet + Apps Script** (saves registrations and verifies payments)
-3. **Hosting on Netlify** (so people can reach your form)
+## Updating your existing deployment
 
-Total time: ~25 minutes.
+1. Open your existing Google Apps Script project.
+2. Replace the contents of its code file with **google-apps-script.js** from this package. Save.
+3. Keep your existing Script Properties and spreadsheet. This version automatically adds seven tracking columns to the right of the previous 23-column header. Existing registrations stay in place. The script finds the existing registration tab by its headers and saves its fixed tab ID, so moving tabs does not switch the registration data.
+4. Select **installRecoveryTrigger** from the function dropdown and click **Run**. Approve permissions if asked. This installs one five-minute payment recovery trigger, replacing an earlier trigger for the same function.
+5. Choose **Deploy → Manage deployments → Edit (pencil) → Version: New version → Deploy**. Keep the existing deployment URL. Saving code alone does not update the web app.
+6. Replace your hosted **index.html** with the updated one in this package. Refresh your browser.
+7. Complete the sandbox checks below before accepting real payments.
 
----
+The original older POC sheet without registration IDs and token hashes cannot be converted automatically. Keep that sheet for reconciliation and start a blank spreadsheet if you are upgrading from that original version. A sheet whose first 23 headers match this package upgrades automatically.
 
-## 1. PayPal credentials
+## First-time setup
 
-You need **two** things from PayPal: a Client ID (goes in the public HTML) and a Client Secret (stays in Apps Script, never sent to the browser).
+The recipient account owner must create an app in their PayPal Developer Dashboard. Start in Sandbox. The public Client ID, backend credentials, and recipient merchant ID must belong to the same environment and intended recipient. A PayPal email or PayPal.Me link alone cannot support automatic verification.
 
-1. Go to [developer.paypal.com](https://developer.paypal.com), log in.
-2. Click **Apps & Credentials**.
-3. Toggle to **Sandbox** for testing.
-4. Click **Create App**, name it something like "MFM Retreat", create.
-5. Copy two values from the app page:
-   - **Client ID** (long string, safe to share)
-   - **Client Secret** (click "Show" — keep this private)
-6. While you're there: under **Testing Tools → Sandbox Accounts**, note the email/password of the auto-created **personal** account. That's your fake buyer for testing.
+Create a blank Google spreadsheet and open **Extensions → Apps Script**. Paste the backend code. In **Project Settings → Script Properties**, set:
 
-You'll switch to **Live** credentials only when you're ready to take real money.
+| Property | Value |
+| --- | --- |
+| `PAYPAL_CLIENT_ID` | Recipient app's sandbox Client ID |
+| `PAYPAL_CLIENT_SECRET` | Matching sandbox Client Secret |
+| `PAYPAL_MERCHANT_ID` | Recipient's sandbox merchant ID, not an email |
+| `PAYPAL_ENV` | `sandbox` |
+| `SPREADSHEET_ID` | The ID between `/d/` and `/edit` in the spreadsheet URL |
 
----
+Keep the Client Secret in Script Properties only. Run **installRecoveryTrigger** and authorize it. Deploy as a **Web app**, executing as **Me**, accessible to **Anyone**. Set the resulting `/exec` URL in `index.html`.
 
-## 2. Google Sheet + Apps Script
+The supplied `/exec` URL and public PayPal Client ID are already in this package. Ensure they match your deployment. Replace `YOUR_WAIVER_LINK_HERE`, `YOUR_RELEASE_WAIVER_LINK_HERE`, and the placeholder pastor choices with the real documents and pastor list.
 
-### 2a. Create the Sheet
+For local preview:
 
-1. Go to [sheets.new](https://sheets.new). Name it *MFM Youth Retreat Registrations*.
-2. **Extensions → Apps Script**. The code editor opens.
-3. Delete the placeholder `function myFunction() {}` and paste the **entire contents of `google-apps-script.js`**.
-4. Save (💾 icon or Ctrl/Cmd + S).
-
-### 2b. Add your PayPal credentials as Script Properties
-
-This is the new part — it's how the script knows your secret without the browser ever seeing it.
-
-1. In Apps Script, click the ⚙ **Project Settings** icon (left sidebar, looks like a gear).
-2. Scroll down to **Script Properties**.
-3. Click **Add script property** and add three properties:
-
-| Property name | Value |
-|---|---|
-| `PAYPAL_CLIENT_ID` | (paste your Client ID from Step 1) |
-| `PAYPAL_CLIENT_SECRET` | (paste your Client Secret from Step 1) |
-| `PAYPAL_ENV` | `sandbox` (later change to `live`) |
-
-4. Click **Save script properties**.
-5. Back in the editor, near the top of the file, set `EXPECTED_AMOUNT` to your registration fee — must match the price in `index.html`.
-
-### 2c. Deploy as a Web App
-
-1. Click the blue **Deploy** button → **New deployment**.
-2. Click ⚙ → choose **Web app**.
-3. Set:
-   - **Execute as**: `Me`
-   - **Who has access**: `Anyone` ← required for the form to submit
-4. Click **Deploy**. Authorize when prompted (it'll ask for Sheet access and external URL access — that's PayPal).
-5. Copy the **Web app URL**.
-6. In `index.html`, paste it where `YOUR_GOOGLE_APPS_SCRIPT_URL` is.
-7. In `index.html`, also paste your **Client ID** where `YOUR_PAYPAL_CLIENT_ID` is.
-8. Set `EVENT_PRICE` in `index.html` to the same value as `EXPECTED_AMOUNT` in the Apps Script.
-
-> If you change the script later: **Deploy → Manage deployments → ✏ Edit → New version → Deploy**. This keeps the URL the same.
-
----
-
-## 3. Host on Netlify
-
-1. Go to [app.netlify.com/drop](https://app.netlify.com/drop)
-2. Drag `index.html` onto the page.
-3. You'll get a URL like `https://random-name-123.netlify.app`. Open it.
-
----
-
-## 4. Test the full flow
-
-1. Open the Netlify URL.
-2. Fill out the form, submit. → A row appears in your Sheet with status **Pending**.
-3. Click the PayPal button. Log in with your **sandbox personal account** from Step 1.
-4. Complete the fake payment.
-5. Watch the success screen briefly say "Verifying payment with PayPal…", then "✓ Payment verified".
-6. Check your Sheet — the row turns green, status flips to **Paid**, and you'll see the order ID, paid timestamp, and amount filled in.
-
-### Try the cheating attack
-
-To prove server-side verification works, open browser dev tools (F12 → Console) on the form page and try:
-
-```js
-fetch('YOUR_GOOGLE_APPS_SCRIPT_URL', {
-  method: 'POST',
-  headers: {'Content-Type': 'text/plain;charset=utf-8'},
-  body: JSON.stringify({
-    confirmPayment: true,
-    email: 'someone@example.com',
-    paypalOrderId: 'FAKE_ORDER_123'
-  })
-}).then(r => r.json()).then(console.log);
+```sh
+cd /path/to/mfmmgr1-fixed
+python3 -m http.server 8090
 ```
 
-You should see: `{ ok: false, error: "PayPal verification failed: Order not found..." }`. The Sheet stays Pending. ✅
+Open http://127.0.0.1:8090/ . For public use, upload `index.html` to an HTTPS static host. The backend code belongs in Apps Script. Do not use `no-cors`; the form must read the save and payment-verification responses.
 
----
+## Payment behavior
 
-## 5. Don't forget — placeholders still in the form
+- A new registration is **Pending**. The server validates all required fields, saves the record, and returns its reference before showing checkout. A waiver or release answer of **No** remains No; the app does not turn it into consent.
+- The server fixes the tuition at **$200.00 USD**, checks the recipient and registration before capture, and requires a completed matching capture before recording **Paid**.
+- A corrected form resubmission updates the same Pending row only before checkout starts. Once an order, payment request, or coordinator report exists, changed details produce an explicit error; the organizer must handle corrections. Identical resubmissions remain safe.
+- A tab's random token restores the same registration on refresh. Retrying a save does not create another row. Siblings may share an email but need separate registration sessions, such as separately opened browser tabs.
+- Each registration has a short-lived payment operation lock. PayPal calls run outside the shared spreadsheet lock so other families can keep registering. If an execution stops unexpectedly, its operation lock expires after ten minutes.
+- Capture attempts and creation request IDs are saved before contacting PayPal. An interrupted request keeps this information, allowing retries to check or reuse that payment instead of opening another one.
+- An existing usable order is reused. A voided order with no payment evidence, or an order explicitly confirmed expired by PayPal with no payment evidence, can be archived and replaced. A timeout, missing order, pending capture, or uncertain response does **not** authorize a new checkout.
+- A confirmed funding decline prompts the buyer to choose another payment method through PayPal. Background recovery waits for that choice instead of repeatedly charging a declined instrument. The next approved attempt receives a new request ID; uncertain attempts retain their existing ID. A terminal order whose captures are all confirmed Declined or Failed can be archived and replaced. Pending, refunded, mixed, and unknown outcomes never authorize another order.
+- Background recovery checks up to ten Pending orders per run, rotating through the list. It can capture an approved Pending order after the browser closes. It never initiates a charge for a Coordinator row.
+- New orders include the saved registration email. PayPal controls whether its hosted card form shows that prefill and may let the buyer change it.
 
-| Placeholder | What to do |
-|---|---|
-| `YOUR_GOOGLE_APPS_SCRIPT_URL` | Paste your Apps Script Web App URL |
-| `YOUR_PAYPAL_CLIENT_ID` | Paste your PayPal Client ID |
-| `YOUR_WAIVER_LINK_HERE` | Paste your Google Drive Retreat Waiver link |
-| `YOUR_RELEASE_WAIVER_LINK_HERE` | Paste your Google Drive Release Waiver link |
-| `Pastor A (placeholder)` etc. | Replace with your actual list of branch pastors |
+## Coordinator payments
 
----
+**Payment made to your coordinator** records **Coordinator** in Payment Status. This is a report by the registrant, not proof of receipt. Once reported, online checkout is closed and background recovery will not charge that registration.
 
-## How it all flows now
+Before recording the report, the server checks any existing PayPal order without initiating a charge. If payment already completed, it records Paid. If an online payment is processing or its outcome is unknown, the coordinator report is blocked until that payment is resolved.
 
-```
-User fills form
-      ↓
-Click "Complete Registration"
-      ↓
-Form data → Apps Script → Google Sheet (new row, "Pending")
-      ↓
-Success screen, PayPal button appears
-      ↓
-User pays via PayPal → browser sends ONLY the order ID to Apps Script
-      ↓
-Apps Script asks PayPal directly: "Is order XYZ real and paid?"
-      ↓
-PayPal replies → if COMPLETED + amount matches → row marked Paid
-                 if not → row stays Pending, user is told to contact leader
-```
+After independently confirming receipt with the coordinator, the organizer can change Payment Status from Coordinator to Paid. This prevents future online checkout. Do not mark a record Paid merely because the registrant clicked the button.
 
-The Sheet never trusts the browser's word for payment status. The fake-payment attack from before now fails because PayPal won't recognize a fake order ID.
+## Sandbox acceptance checks
 
----
+Use a sandbox buyer account separate from the sandbox recipient account. These checks involve test money only.
+
+1. Submit a completed form. Verify one Pending row and a registration reference.
+2. Refresh or retry a save in the same tab. Verify no duplicate registration.
+3. Pay $200 with the sandbox buyer. Verify Paid, a Capture ID, and the transaction in the recipient's sandbox activity.
+4. Cancel checkout. Verify the registration remains Pending.
+5. Report payment to a coordinator before approving an online payment. Verify Coordinator in the sheet, no online payment buttons after refresh, and no charge when recovery runs.
+6. Close checkout immediately after approving payment. Run **recoverPendingPayments** manually or wait for the trigger. Verify capture and Paid, without making another payment.
+7. Refresh after a connection failure. Verify the existing transaction before trying again. A pending capture must not show Registration confirmed.
+8. Register a sibling in a fresh registration session. Verify a separate row and payment despite using the same email.
+9. Test a funding decline using PayPal sandbox testing tools. Verify that the payer can choose another payment method, and that recovery does not keep retrying the declined instrument.
+10. Move another sheet tab before the registration tab and add a Notes column after the application columns. Verify that an existing Paid registration stays Paid and that new payments can still update the correct tab.
+11. Before opening checkout, resubmit with a corrected email after a simulated save-response failure. Verify the same row is corrected. After checkout starts, verify changed details are rejected with a clear message.
+
+Run `node run-checks.cjs` for every offline check. This runs JavaScript syntax checks, the regression suite in `payment-tests.cjs`, and the interrupted-write suite in `failure-tests.cjs`. It tests server validation, migration, payment verification, coordinator races, retry behavior, expired-order handling, recovery, and frontend confirmation callbacks using simulated Google and PayPal services. It does not test Google deployment permissions, browser CORS, account credentials, or PayPal's hosted checkout. No account credentials or money are used by this suite.
+
+For the additional full-page browser suite, install Playwright and Chromium in your development environment (`npm install --no-save playwright`, then `npx playwright install chromium`) and run `node run-checks.cjs --browser`. This also checks keyboard selection, phone autofill, form submission, save-response loss, session restoration, coordinator reporting, and payment callbacks in Chromium. All browser requests are intercepted; Google and PayPal are still simulated. You may set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an already installed Chromium executable.
+
+## Troubleshooting and operations
+
+- Check **Last Payment Check** and **Payment Error** in the spreadsheet. API errors return JSON with `ok:false`, so an Apps Script execution marked Completed does not by itself mean a payment succeeded.
+- The automatic `REGISTRATION_TAB_<spreadsheet ID>` Script Property pins the registration tab. Keep it intact. If that tab is deleted, restore it; the app will not silently start a new registration table. For first-time setup or an upgrade with multiple matching tabs, set optional `REGISTRATION_SHEET_ID` to the intended tab’s numeric `gid` from its URL before running `installRecoveryTrigger`. A pinned tab remains authoritative afterward.
+- You may add organizer columns, such as Notes, **after column AD**. The app only reads and writes its own first 30 columns.
+- Keep the payment tracking columns intact. Do not clear order IDs, request IDs, capture markers, or token hashes to force a fresh payment. Review the existing order in the recipient's PayPal account first.
+- If a create-order response was lost and could not be recovered within five hours, the app asks for organizer assistance. It does not assume an old idempotency key still prevents duplicates indefinitely.
+- If you switch PayPal environment, merchant, or Client ID, existing checkouts are blocked from being reused under the different configuration. Use a separate spreadsheet for live registrations.
+- Recovery depends on Google Apps Script execution limits, quotas, and trigger availability. Check **Triggers** and **Executions** after deployment.
+- Closing the browser tab may lose access to its registration token. The organizer can locate the registration by its displayed reference; server recovery continues independently.
+- Confirmation emails, refunds/disputes tracking, capacity limits, and spam protection are not implemented. Paid reflects successful verification or organizer confirmation, not subsequent refund/dispute status.
 
 ## Going live
 
-When you're ready for real money:
+After sandbox acceptance, use the recipient's matching **live** Client ID, Client Secret, merchant ID, and `PAYPAL_ENV=live`. Change the PayPal Client ID in the HTML too. Use a new live spreadsheet so sandbox records cannot be mistaken for actual registrations. Deploy a new backend version, upload the HTML, and run **installRecoveryTrigger** against the live configuration.
 
-1. In PayPal developer dashboard, switch to **Live** and create a Live app (or use your existing live app's credentials).
-2. Update **all three** Script Properties in Apps Script: new `PAYPAL_CLIENT_ID`, new `PAYPAL_CLIENT_SECRET`, and change `PAYPAL_ENV` from `sandbox` to `live`.
-3. Update the Client ID in `index.html` to the live one.
-4. Re-upload to Netlify (drag-drop replaces the file).
-5. Do one real $0.01-style test if your event allows it, then refund yourself.
-
----
-
-## Troubleshooting
-
-- **"PayPal verification failed: Order not found"** → either `PAYPAL_ENV` doesn't match (sandbox order being checked against live API or vice versa), or the Client ID/Secret don't match the environment.
-- **"PayPal credentials not configured"** → Script Properties weren't saved correctly. Re-check the spelling of the property names — they must be exactly `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_ENV`.
-- **Authorization error when deploying** → re-deploy and click through the auth screens again. Apps Script needs permission to make external URL requests (that's how it talks to PayPal).
-- **"Amount too low"** → `EXPECTED_AMOUNT` in Apps Script must be ≤ `EVENT_PRICE` in `index.html`. Easiest is keeping them identical.
-- **Row appears but PayPal button never shows** → Check the browser console. Most likely cause: the SDK URL still has the literal string `YOUR_PAYPAL_CLIENT_ID`.
+References: [PayPal funding-failure handling](https://developer.paypal.com/v5/checkout/handle-funding-failure/), [PayPal order updates](https://developer.paypal.com/api/orders/v2/orders-patch), [PayPal request ID retention](https://developer.paypal.com/sdk/orders/v2/orders-create/), [Apps Script installable triggers](https://developers.google.com/apps-script/guides/triggers/installable).
