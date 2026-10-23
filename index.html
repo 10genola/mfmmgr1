@@ -603,36 +603,19 @@
 
     <div class="waiver-block">
       <p>
-        Please download, complete, and submit the <strong>Retreat Waiver Form</strong> to your youth leader before the retreat.<br/>
+        Please download, complete and submit the <strong>Retreat Release Waiver forms</strong> to your youth leader before the retreat<br/>
         <a href="https://drive.google.com/drive/folders/1Rvsj79vTWxB7JWK2VP33d5Z4GvpgidlC" target="_blank" rel="noopener">
-          &#128196; Download Waiver Form (Google Drive)
+          &#128196; Download Retreat Release Waiver forms (Google Drive)
         </a>
       </p>
-      <div class="waiver-label">I have completed the Waiver Form <span class="req">*</span></div>
-      <div class="toggle-group" id="waiverGroup">
+      <div class="waiver-label" id="waiver-label">I have completed the Retreat Release Waiver forms <span class="req">*</span></div>
+      <div class="toggle-group" id="waiverGroup" role="radiogroup" aria-labelledby="waiver-label" aria-describedby="err-waiver" aria-required="true">
         <input type="radio" name="waiver" id="wYes" value="Yes"/>
         <label for="wYes">Yes</label>
         <input type="radio" name="waiver" id="wNo" value="No"/>
         <label for="wNo">No</label>
       </div>
-      <span class="field-error" id="err-waiver">Please confirm your waiver status.</span>
-    </div>
-
-    <div class="waiver-block">
-      <p>
-        Download the waiver forms from the header, then submit the completed form to your youth leader.<br/>
-        <a href="https://drive.google.com/drive/folders/1Rvsj79vTWxB7JWK2VP33d5Z4GvpgidlC" target="_blank" rel="noopener">
-          &#128196; Download MFM Release Waiver (Google Drive)
-        </a>
-      </p>
-      <div class="waiver-label">I have completed the MFM Release Waiver <span class="req">*</span></div>
-      <div class="toggle-group" id="releaseGroup">
-        <input type="radio" name="release" id="rYes" value="Yes"/>
-        <label for="rYes">Yes</label>
-        <input type="radio" name="release" id="rNo" value="No"/>
-        <label for="rNo">No</label>
-      </div>
-      <span class="field-error" id="err-release">Please confirm your release waiver status.</span>
+      <span class="field-error" id="err-waiver">Please confirm whether you have completed the Retreat Release Waiver forms.</span>
     </div>
   </div>
 
@@ -715,7 +698,7 @@ function radio(name)    { var r=document.querySelector('input[name="'+name+'"]:c
   document.getElementById(id).addEventListener('input',  function(){ ok(id); });
   document.getElementById(id).addEventListener('change', function(){ ok(id); });
 });
-var radioMaps = {gender:'genderGroup',coordinator:'coordGroup',waiver:'waiverGroup',release:'releaseGroup'};
+var radioMaps = {gender:'genderGroup',coordinator:'coordGroup',waiver:'waiverGroup'};
 Object.keys(radioMaps).forEach(function(name){
   document.querySelectorAll('input[name="'+name+'"]').forEach(function(r){
     r.addEventListener('change', function(){ okG(radioMaps[name],'err-'+name); });
@@ -751,7 +734,6 @@ document.getElementById('regForm').addEventListener('submit', function(e){
     {name:'shirt',       gid:'shirtGroup',  eid:'err-shirt'},
     {name:'coordinator', gid:'coordGroup',  eid:'err-coordinator'},
     {name:'waiver',      gid:'waiverGroup', eid:'err-waiver'},
-    {name:'release',     gid:'releaseGroup',eid:'err-release'},
   ];
   groups.forEach(function(g){
     if(!radio(g.name)){ failG(g.gid,g.eid); valid=false; } else okG(g.gid,g.eid);
@@ -779,7 +761,8 @@ document.getElementById('regForm').addEventListener('submit', function(e){
     coordinator: radio('coordinator'),
     pastor:      document.getElementById('pastor').value,
     waiver:      radio('waiver'),
-    release:     radio('release'),
+    // The combined answer covers both existing waiver columns in the spreadsheet.
+    release:     radio('waiver'),
     sports:      Array.from(document.querySelectorAll('input[name="sports"]:checked'), el=>el.value),
     timestamp:   new Date().toISOString(),
     paymentStatus: 'Pending'

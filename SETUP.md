@@ -21,6 +21,8 @@ This package updates the local registration site used for Cloudflare, not the se
 
 The Activities section now offers independent, optional checkboxes for **Basketball**, **Soccer**, and **Other sports**. Column N becomes **Outdoor Sports** and stores the selected names, or **None selected**. Existing zip line answers are preserved as **Zip line: Yes** or **Zip line: No**. The migration is safe to repeat and does not move payment columns or overwrite organizer notes.
 
+Waivers & Consent now has one download link and one Yes/No question covering the Retreat Release Waiver forms. The answer is saved to both existing waiver columns for compatibility; a No stays No in both columns. This consolidation requires no additional Apps Script change.
+
 The original older POC sheet without registration IDs and token hashes cannot be converted automatically. Keep that sheet for reconciliation and start a blank spreadsheet if you are upgrading from that original version. A sheet whose first 23 headers match this package upgrades automatically.
 
 ## First-time setup
@@ -39,7 +41,7 @@ Create a blank Google spreadsheet and open **Extensions → Apps Script**. Paste
 
 Keep the Client Secret in Script Properties only. Run **installRecoveryTrigger** and authorize it. Deploy as a **Web app**, executing as **Me**, accessible to **Anyone**. Set the resulting `/exec` URL in `index.html`.
 
-The supplied `/exec` URL and public PayPal Client ID are already in this package. Ensure they match your deployment. Replace `YOUR_WAIVER_LINK_HERE`, `YOUR_RELEASE_WAIVER_LINK_HERE`, and the placeholder pastor choices with the real documents and pastor list.
+The supplied `/exec` URL and public PayPal Client ID are already in this package. Ensure they match your deployment. The combined waiver link points to the church's [Retreat Release Waiver forms folder](https://drive.google.com/drive/folders/1Rvsj79vTWxB7JWK2VP33d5Z4GvpgidlC). Ensure attendees have access to that folder, and replace the placeholder pastor choices with the real pastor list.
 
 For local preview:
 

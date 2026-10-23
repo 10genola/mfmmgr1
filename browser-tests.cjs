@@ -59,7 +59,7 @@ async function fillForm(page, email = 'parent@example.com') {
   await page.locator('#lastName').fill('Camper');
   await page.locator('#email').fill(email);
   await page.locator('#phone').fill('+1 (212) 555-1234');
-  for (const id of ['gFemale','sM','coordYes','wNo','rYes']) await page.locator('label[for="' + id + '"]').click();
+  for (const id of ['gFemale','sM','coordYes','wNo']) await page.locator('label[for="' + id + '"]').click();
   await page.getByRole('checkbox',{name:'Basketball',exact:true}).check();
   await page.getByRole('checkbox',{name:'Soccer',exact:true}).check();
   await page.locator('#grade').selectOption('8th');
@@ -96,6 +96,8 @@ async function run() {
       }));
       assert.equal(layout.uniqueIds, layout.ids); assert.equal(layout.missingLabels, 0);
       assert(layout.logo > 0); assert.equal(layout.overflow, false);
+      assert.equal(await page.locator('.waiver-block').count(), 1);
+      assert.equal(await page.locator('input[name="release"]').count(), 0);
       await page.locator('#regForm button[type="submit"]').click();
       assert.equal(requests.length, 0);
       assert.equal(await page.locator('#val-summary').isVisible(), true);
@@ -108,7 +110,7 @@ async function run() {
       assert.equal(await page.evaluate(() => document.activeElement.name), 'gender');
       await page.keyboard.press('ArrowRight');
       assert.equal(await page.locator('input[name="gender"]:checked').count(), 1);
-      for (const name of ['shirt','coordinator','waiver','release']) {
+      for (const name of ['shirt','coordinator','waiver']) {
         await page.locator('input[name="' + name + '"]').first().focus();
         assert.equal(await page.evaluate(() => document.activeElement.name), name);
         await page.keyboard.press('Space');
@@ -142,6 +144,8 @@ async function run() {
       await fillForm(page); await save(page);
       assert.equal((await row(f))[3], 'parent@example.com');
       assert.equal((await row(f))[4], '(212) 555-1234');
+      assert.equal((await row(f))[11], 'No');
+      assert.equal((await row(f))[12], 'No');
       assert.equal((await row(f))[13], 'Basketball, Soccer');
       assert.equal((await row(f))[C.status], 'Pending');
       assert.equal(f.orders.size, 0, 'saving alone cannot start payment');
