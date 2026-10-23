@@ -232,6 +232,23 @@
   }
   .invalid-group label { border-color: var(--red) !important; }
 
+  /* OUTDOOR SPORTS CHECKLIST */
+  .sports-list { min-width: 0; margin: 0; padding: 0; border: 0; }
+  .sports-list legend {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+    color: var(--gray-600); text-transform: uppercase;
+  }
+  .sports-help { margin: 8px 0 14px; font-size: 13px; color: var(--gray-600); }
+  .sports-options { display: grid; gap: 10px; }
+  .sport-choice {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+    border: 1.5px solid var(--gray-200); border-radius: var(--radius);
+    background: var(--gray-100); color: var(--gray-800);
+    font-size: 14px; font-weight: 500; cursor: pointer;
+  }
+  .sport-choice input { width: 18px; height: 18px; margin: 0; accent-color: var(--navy); }
+  .sport-choice input:focus-visible { outline: 3px solid var(--navy-light); outline-offset: 3px; }
+
   /* SIZE SWATCHES */
   .size-group { display: flex; gap: 8px; flex-wrap: wrap; }
   .size-group label {
@@ -569,16 +586,15 @@
   <!-- 4. Activities -->
   <div class="section">
     <div class="section-title">Activities</div>
-    <div class="field">
-      <label class="field-label">I opt-in to the Zip Line activity <span class="req">*</span></label>
-      <div class="toggle-group" id="zipGroup">
-        <input type="radio" name="zipline" id="zYes" value="Yes"/>
-        <label for="zYes">Yes, I'm in!</label>
-        <input type="radio" name="zipline" id="zNo" value="No"/>
-        <label for="zNo">No thanks</label>
+    <fieldset class="sports-list" aria-describedby="sports-help">
+      <legend>Outdoor sports</legend>
+      <p class="sports-help" id="sports-help">Select all you would like to participate in (optional).</p>
+      <div class="sports-options">
+        <label class="sport-choice" for="sportBasketball"><input type="checkbox" name="sports" id="sportBasketball" value="Basketball"/>Basketball</label>
+        <label class="sport-choice" for="sportSoccer"><input type="checkbox" name="sports" id="sportSoccer" value="Soccer"/>Soccer</label>
+        <label class="sport-choice" for="sportOther"><input type="checkbox" name="sports" id="sportOther" value="Other sports"/>Other sports</label>
       </div>
-      <span class="field-error" id="err-zipline">Please select an option.</span>
-    </div>
+    </fieldset>
   </div>
 
   <!-- 5. Waivers -->
@@ -699,7 +715,7 @@ function radio(name)    { var r=document.querySelector('input[name="'+name+'"]:c
   document.getElementById(id).addEventListener('input',  function(){ ok(id); });
   document.getElementById(id).addEventListener('change', function(){ ok(id); });
 });
-var radioMaps = {gender:'genderGroup',coordinator:'coordGroup',waiver:'waiverGroup',release:'releaseGroup',zipline:'zipGroup'};
+var radioMaps = {gender:'genderGroup',coordinator:'coordGroup',waiver:'waiverGroup',release:'releaseGroup'};
 Object.keys(radioMaps).forEach(function(name){
   document.querySelectorAll('input[name="'+name+'"]').forEach(function(r){
     r.addEventListener('change', function(){ okG(radioMaps[name],'err-'+name); });
@@ -736,7 +752,6 @@ document.getElementById('regForm').addEventListener('submit', function(e){
     {name:'coordinator', gid:'coordGroup',  eid:'err-coordinator'},
     {name:'waiver',      gid:'waiverGroup', eid:'err-waiver'},
     {name:'release',     gid:'releaseGroup',eid:'err-release'},
-    {name:'zipline',     gid:'zipGroup',    eid:'err-zipline'},
   ];
   groups.forEach(function(g){
     if(!radio(g.name)){ failG(g.gid,g.eid); valid=false; } else okG(g.gid,g.eid);
@@ -765,7 +780,7 @@ document.getElementById('regForm').addEventListener('submit', function(e){
     pastor:      document.getElementById('pastor').value,
     waiver:      radio('waiver'),
     release:     radio('release'),
-    zipline:     radio('zipline'),
+    sports:      Array.from(document.querySelectorAll('input[name="sports"]:checked'), el=>el.value),
     timestamp:   new Date().toISOString(),
     paymentStatus: 'Pending'
   };

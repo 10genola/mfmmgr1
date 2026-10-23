@@ -6,6 +6,8 @@ This package updates the local registration site used for Cloudflare, not the se
 
 ## Updating your existing deployment
 
+**Outdoor sports checklist:** deploy the updated Apps Script before publishing this HTML. The new form sends a list of selected sports; the older script only understands the zip line Yes/No answer. The updated script accepts older forms too, so update the backend first. Keep the same `/exec` URL by editing the existing deployment.
+
 1. Open your existing Google Apps Script project.
 2. Replace the contents of its code file with **google-apps-script.js** from this package. Save.
 3. Keep your existing Script Properties and spreadsheet. This version automatically adds seven tracking columns to the right of the previous 23-column header. Existing registrations stay in place. The script finds the existing registration tab by its headers and saves its fixed tab ID, so moving tabs does not switch the registration data.
@@ -16,6 +18,8 @@ This package updates the local registration site used for Cloudflare, not the se
    - An older browser page will be asked to refresh before starting checkout with the new total.
    - New HTML connected to an older backend shows both payment options and prices, with disabled buttons and a temporary-unavailability notice. Deploying both files resolves this; do not bypass the version check.
 7. Complete the sandbox checks below before accepting real payments.
+
+The Activities section now offers independent, optional checkboxes for **Basketball**, **Soccer**, and **Other sports**. Column N becomes **Outdoor Sports** and stores the selected names, or **None selected**. Existing zip line answers are preserved as **Zip line: Yes** or **Zip line: No**. The migration is safe to repeat and does not move payment columns or overwrite organizer notes.
 
 The original older POC sheet without registration IDs and token hashes cannot be converted automatically. Keep that sheet for reconciliation and start a blank spreadsheet if you are upgrading from that original version. A sheet whose first 23 headers match this package upgrades automatically.
 

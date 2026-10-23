@@ -8,7 +8,7 @@ const ZELLE_RECIPIENT = 'giving@mfmnewyork.org';
 const COLUMNS = [
   'Timestamp', 'First Name', 'Last Name', 'Email', 'Phone', 'Gender', 'Grade',
   'T-Shirt', 'State', 'Has Coordinator', 'Branch Pastor', 'Waiver Done',
-  'Release Done', 'Zipline', 'Payment Status', 'PayPal Order ID', 'Paid At',
+  'Release Done', 'Outdoor Sports', 'Payment Status', 'PayPal Order ID', 'Paid At',
   'Paid Amount', 'Registration ID', 'Token Hash', 'Capture ID',
   'Last Payment Check', 'Payment Error',
   // Added to the right of the existing 23 columns; existing rows are preserved.
@@ -22,7 +22,8 @@ const COL = {status:14, order:15, paidAt:16, amount:17, id:18, hash:19,
 const PAYMENT_LEASE_MS = 10 * 60 * 1000; // Longer than Apps Script's 6-minute execution limit.
 const CREATE_RETRY_MS = 5 * 60 * 60 * 1000; // Stay inside PayPal's default 6-hour retention.
 const FORM_FIELDS = ['firstName','lastName','email','phone','gender','grade','tshirt',
-  'state','coordinator','pastor','waiver','release','zipline'];
+  'state','coordinator','pastor','waiver','release','sports'];
+const OUTDOOR_SPORTS = ['Basketball','Soccer','Other sports'];
 const STATES = ('Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|' +
   'Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|' +
   'Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|' +
@@ -53,6 +54,11 @@ function locked(fn) {
   }
 }
 
+function matchesRegistrationHeader(header, expected) {
+  const normalized = header.slice();
+  if (normalized[13] === 'Zipline') normalized[13] = 'Outdoor Sports';
+  return JSON.stringify(normalized) === JSON.stringify(expected);
+}
 function registrationSheet(c) {
   const book = SpreadsheetApp.openById(c.sheet);
   const properties = PropertiesService.getScriptProperties();
@@ -68,7 +74,7 @@ function registrationSheet(c) {
     // Discover the previous version's tab by its header, never by tab position.
     const sheets = book.getSheets();
     const matches = sheets.filter(tab => tab.getLastRow() && tab.getMaxColumns() >= 23 &&
-      JSON.stringify(tab.getRange(1, 1, 1, 23).getValues()[0]) === JSON.stringify(COLUMNS.slice(0, 23)));
+      matchesRegistrationHeader(tab.getRange(1, 1, 1, 23).getValues()[0], COLUMNS.slice(0, 23)));
     if (matches.length === 1) s = matches[0];
     else if (!matches.length && sheets.length === 1 && !sheets[0].getLastRow()) s = sheets[0];
     else throw Error('Registration tab is ambiguous. Set REGISTRATION_SHEET_ID to the intended tab gid, then run installRecoveryTrigger.');
@@ -80,10 +86,20 @@ function registrationSheet(c) {
   const header = s.getRange(1, 1, 1, COLUMNS.length).getValues()[0];
   const legacy = header.slice(23).every(v => v === '');
   const expected = legacy ? COLUMNS.slice(0, 23) : COLUMNS;
-  if (JSON.stringify(header.slice(0, expected.length)) !== JSON.stringify(expected)) {
+  if (!matchesRegistrationHeader(header.slice(0, expected.length), expected)) {
     throw Error('Sheet headers do not match. Contact the organizer; do not delete existing registrations.');
   }
   if (legacy) s.getRange(1, 24, 1, COLUMNS.length - 23).setValues([COLUMNS.slice(23)]);
+  if (header[13] === 'Zipline') {
+    // Label historical answers before renaming the column. This is safe to
+    // repeat if a write stops partway through; no payment columns are moved.
+    if (s.getLastRow() > 1) {
+      const range = s.getRange(2, 14, s.getLastRow() - 1, 1);
+      const activities = range.getValues().map(([value]) => [['Yes','No'].includes(value) ? 'Zip line: '+value : value]);
+      range.setValues(activities);
+    }
+    s.getRange(1, 14).setValue('Outdoor Sports');
+  }
   if (pinned !== String(s.getSheetId())) properties.setProperty(bindingKey, String(s.getSheetId()));
   return s;
 }
@@ -139,7 +155,7 @@ function checkoutContext(r) {
 function onlineAmount(r) { return checkoutContext(r).amount; }
 function validateRegistration(d) {
   const values = {};
-  FORM_FIELDS.forEach(key => {
+  FORM_FIELDS.filter(key => key !== 'sports').forEach(key => {
     const limit = key === 'email' ? 254 : key === 'phone' ? 40 : 100;
     if (typeof d[key] !== 'string' || !d[key].trim() || d[key].trim().length > limit || /[\x00-\x1f\x7f]/.test(d[key])) {
       throw Error('Please provide a valid ' + key + '.');
@@ -153,10 +169,20 @@ function validateRegistration(d) {
   }
   const choices = {gender:['Male','Female'], grade:['6th','7th','8th','9th','10th','11th','12th','College / Adult'],
     tshirt:['XS','S','M','L','XL','XXL'], state:STATES};
-  ['coordinator','waiver','release','zipline'].forEach(key => choices[key] = ['Yes','No']);
+  ['coordinator','waiver','release'].forEach(key => choices[key] = ['Yes','No']);
   Object.keys(choices).forEach(key => {
     if (!choices[key].includes(values[key])) throw Error('Please choose a valid ' + key + '.');
   });
+  if (d.sports !== undefined) {
+    if (!Array.isArray(d.sports) || d.sports.length > OUTDOOR_SPORTS.length ||
+        d.sports.some(sport => !OUTDOOR_SPORTS.includes(sport)) || new Set(d.sports).size !== d.sports.length) {
+      throw Error('Please choose valid outdoor sports.');
+    }
+    values.sports = OUTDOOR_SPORTS.filter(sport => d.sports.includes(sport)).join(', ') || 'None selected';
+  } else if (['Yes','No'].includes(d.zipline)) {
+    // Older open forms remain usable while the website update is deployed.
+    values.sports = 'Zip line: ' + d.zipline;
+  } else throw Error('Please choose valid outdoor sports.');
   // A "No" waiver/release answer is valid; it is not turned into consent.
   return FORM_FIELDS.map(key => clean(values[key]));
 }

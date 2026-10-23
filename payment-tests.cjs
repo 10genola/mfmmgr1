@@ -157,6 +157,47 @@ test('formula escaping and malformed/oversized requests', () => {
   assert.equal(f.ctx.doPost({postData:{contents:'{'}}).ok, false);
 });
 
+test('outdoor sports accepts every checklist combination, including none, and saves a stable selection', () => {
+  const options=['Basketball','Soccer','Other sports'];
+  for(let mask=0;mask<8;mask++) {
+    const sports=options.filter((_,i)=>mask & (1<<i));
+    const f=fixture();const result=f.register(1,{sports});
+    assert.equal(result.ok,true);assert.equal(f.row()[13],sports.join(', ')||'None selected');
+    assert.equal(f.rows[0][13],'Outdoor Sports');
+    f.create();
+    assert.equal(f.register(1,{sports:[...sports].reverse()}).ok,true,'order of checks does not change the saved details');
+    assert.equal(f.rows.length,2);
+  }
+  for(const sports of [null,'Basketball',42,{},['Zip line'],['basketball'],['Basketball','Basketball'],[true],['=IMPORTXML("x")'],options.concat('Soccer')]) {
+    const f=fixture();assert.equal(f.call('register',1,{...fields,sports}).ok,false);assert.equal(f.rows.length,1);
+  }
+  const f=fixture();const data={...fields,sports:[]};delete data.zipline;
+  assert.equal(f.call('register',1,data).ok,true);assert.equal(f.row()[13],'None selected');
+});
+
+test('historical zip line answers migrate without moving payment data or organizer notes', () => {
+  const f=fixture();f.register();f.register(2,{zipline:'Yes'});
+  f.rows[0][13]='Zipline';f.rows[1][13]='No';f.rows[2][13]='Yes';
+  f.rows[0][30]='Notes';f.rows[1][30]='Keep this note';
+  f.rows[2][C.status]='Paid';f.rows[2][17]='200.00';
+  const before=clone(f.rows);
+  assert.equal(f.call('status').ok,true);
+  assert.equal(f.rows[0][13],'Outdoor Sports');
+  for(let i=1;i<f.rows.length;i++) {
+    assert.equal(f.rows[i][13],'Zip line: '+before[i][13]);
+    assert.deepEqual(clone(f.rows[i].slice(0,13)),before[i].slice(0,13));
+    assert.equal(f.rows[i][C.status],before[i][C.status]);
+    assert.equal(f.rows[i][17],before[i][17]);
+    assert.equal(f.rows[i][30],before[i][30]);
+  }
+  assert.equal(f.register().ok,true,'an old form can retry its unchanged answer');
+  assert.equal(f.row()[13],'Zip line: No');
+  f.rows[0][13]='Zipline'; // Interrupted upgrade after values were written.
+  delete f.properties.REGISTRATION_TAB_sheet;
+  assert.equal(f.call('status').ok,true);assert.equal(f.row()[13],'Zip line: No');
+  assert.equal(f.rows[0][13],'Outdoor Sports');
+});
+
 test('legacy 23-column sheet is upgraded without changing existing data', () => {
   const f = fixture(); f.register();
   f.rows.forEach(row => row.splice(23));

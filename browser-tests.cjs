@@ -59,7 +59,9 @@ async function fillForm(page, email = 'parent@example.com') {
   await page.locator('#lastName').fill('Camper');
   await page.locator('#email').fill(email);
   await page.locator('#phone').fill('+1 (212) 555-1234');
-  for (const id of ['gFemale','sM','coordYes','zNo','wNo','rYes']) await page.locator('label[for="' + id + '"]').click();
+  for (const id of ['gFemale','sM','coordYes','wNo','rYes']) await page.locator('label[for="' + id + '"]').click();
+  await page.getByRole('checkbox',{name:'Basketball',exact:true}).check();
+  await page.getByRole('checkbox',{name:'Soccer',exact:true}).check();
   await page.locator('#grade').selectOption('8th');
   await page.locator('#state').selectOption('New York');
   await page.locator('#pastor').selectOption({index:1});
@@ -106,12 +108,24 @@ async function run() {
       assert.equal(await page.evaluate(() => document.activeElement.name), 'gender');
       await page.keyboard.press('ArrowRight');
       assert.equal(await page.locator('input[name="gender"]:checked').count(), 1);
-      for (const name of ['shirt','coordinator','zipline','waiver','release']) {
+      for (const name of ['shirt','coordinator','waiver','release']) {
         await page.locator('input[name="' + name + '"]').first().focus();
         assert.equal(await page.evaluate(() => document.activeElement.name), name);
         await page.keyboard.press('Space');
         assert.equal(await page.locator('input[name="' + name + '"]:checked').count(), 1);
       }
+    });
+    await test('outdoor sports checkboxes allow multiple selections, keyboard control, or none', async open => {
+      const {page,f}=await open();await fillForm(page);
+      assert.equal(await page.getByRole('checkbox').count(),3);
+      assert.equal(await page.locator('#zipGroup').count(),0);
+      await page.getByRole('checkbox',{name:'Other sports',exact:true}).focus();
+      await page.keyboard.press('Space');
+      await save(page);assert.equal((await row(f))[13],'Basketball, Soccer, Other sports');
+      await page.goto(origin);await fillForm(page);
+      await page.getByRole('checkbox',{name:'Basketball',exact:true}).uncheck();
+      await page.getByRole('checkbox',{name:'Soccer',exact:true}).uncheck();
+      await save(page);assert.equal(f.rows[2][13],'None selected');
     });
     await test('phone input limits typing and pasted numbers to ten digits, preserving US autofill', async open => {
       const {page} = await open();
@@ -128,6 +142,7 @@ async function run() {
       await fillForm(page); await save(page);
       assert.equal((await row(f))[3], 'parent@example.com');
       assert.equal((await row(f))[4], '(212) 555-1234');
+      assert.equal((await row(f))[13], 'Basketball, Soccer');
       assert.equal((await row(f))[C.status], 'Pending');
       assert.equal(f.orders.size, 0, 'saving alone cannot start payment');
       await page.getByText('Test PayPal checkout', {exact:true}).click();

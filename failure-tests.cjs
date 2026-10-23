@@ -54,9 +54,11 @@ const scenarios = {
     f.create(); f.complete(f.order()); f.order().purchase_units[0].payments.captures[0].status = 'DECLINED';
   }, check:f=>{ assert.equal(f.orders.size, 2); assert.equal(f.row()[C.history], 'ORDER1'); assert.equal(f.row()[C.order], 'ORDER2'); }},
   upgrade: {action:'status', setup:f=>{
+    f.rows[0][13]='Zipline';f.rows[1][13]='No';
     f.rows.forEach(row => row.splice(23)); delete f.properties.REGISTRATION_TAB_sheet;
     f.blank = fixture(7); f.sheets.unshift(f.blank.sheet);
-  }, check:f=>{ assert.equal(f.blank.rows.length, 0); assert.equal(f.rows.length, 2); assert.equal(f.properties.REGISTRATION_TAB_sheet, '0'); }},
+  }, check:f=>{ assert.equal(f.blank.rows.length, 0); assert.equal(f.rows.length, 2); assert.equal(f.properties.REGISTRATION_TAB_sheet, '0');
+    assert.equal(f.rows[0][13],'Outdoor Sports');assert.equal(f.row()[13],'Zip line: No'); }},
   replaceVoided: {action:'createOrder', setup:f=>{ f.create(); f.order().status = 'VOIDED'; }, check:f=>{
     assert.equal(f.orders.size, 2); assert.equal(f.count('capture'), 0);
     assert.equal(f.row()[C.order], 'ORDER2'); assert.equal(f.row()[C.history], 'ORDER1');
