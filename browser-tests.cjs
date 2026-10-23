@@ -34,7 +34,7 @@ async function openForm(browser, options = {}) {
   page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
   await context.route('**/*', async route => {
     const url = new URL(route.request().url());
-    if (url.href === origin) return route.fulfill({contentType:'text/html', body:html});
+    if (url.origin === new URL(origin).origin && url.pathname === '/') return route.fulfill({contentType:'text/html', body:html});
     if (url.hostname === 'www.paypal.com' && url.pathname === '/sdk/js') {
       return options.missingSDK ? route.abort() : route.fulfill({contentType:'application/javascript', body:sdk});
     }
@@ -141,7 +141,7 @@ async function run() {
       assert.equal(await page.getByText('I have paid my youth coordinator', {exact:true}).count(), 0);
       assert.equal((await row(f))[C.status], 'Paid');
       await page.reload();
-      await page.locator('#success-msg').waitFor({state:'visible'});
+      await page.getByRole('heading',{name:'Registration confirmed',exact:true}).waitFor();
       assert.equal(await page.locator('#success-msg h2').textContent(), 'Registration confirmed');
       assert.equal(f.rows.length, 2); assert.equal(f.count('capture'), 1);
       assert.equal(new Set(requests.map(r => r.token)).size, 1);
@@ -171,6 +171,45 @@ async function run() {
       for (let i = 0; i < 2; i++) { const {page} = await open({fixture:f}); await fillForm(page); await save(page); }
       assert.equal(f.rows.length, 3); assert.notEqual(f.rows[1][C.id], f.rows[2][C.id]);
       assert.notEqual(f.rows[1][C.hash], f.rows[2][C.hash]); assert.equal(f.orders.size, 0);
+    });
+    await test('opening the main URL starts a fresh form without checking or capturing the earlier submission', async open => {
+      const {page,f,requests}=await open();await fillForm(page);await save(page);
+      const firstURL=page.url(), firstToken=requests[0].token;
+      await page.getByText('Test PayPal checkout',{exact:true}).click();await page.waitForFunction(()=>window.testOrderId);
+      [...f.orders.values()][0].status='APPROVED';
+      const count=requests.length;
+      await page.goto(origin);
+      assert.equal(await page.locator('#regForm').isVisible(),true);
+      assert.equal(await page.locator('#success-msg').isVisible(),false);
+      assert.equal(await page.locator('#firstName').inputValue(),'');
+      assert.equal(requests.length,count);assert.equal(f.count('capture'),0);
+      await fillForm(page);await save(page);
+      assert.notEqual(page.url(),firstURL);assert.notEqual(requests.at(-1).token,firstToken);
+      assert.equal(f.rows.length,3);assert.equal(f.rows[1][C.status],'Pending');
+      assert.equal(f.count('capture'),0);
+    });
+    await test('history and refresh restore the specific submission, not the most recent tab token', async open => {
+      const {page,f,requests}=await open();await fillForm(page);await save(page);
+      const firstURL=page.url(),firstID=f.rows[1][C.id],firstToken=requests[0].token;
+      await page.goto(origin);await fillForm(page);await save(page);
+      const secondURL=page.url(),secondID=f.rows[2][C.id];
+      await page.goBack();
+      await page.getByText('Registration reference: '+firstID,{exact:true}).waitFor();
+      assert.equal(page.url(),firstURL);
+      await page.reload();await page.getByText('Registration reference: '+firstID,{exact:true}).waitFor();
+      assert.equal(requests.at(-1).token,firstToken);
+      await page.goForward();await page.getByText('Registration reference: '+secondID,{exact:true}).waitFor();
+      assert.equal(page.url(),secondURL);assert.equal(f.rows.length,3);assert.equal(f.count('capture'),0);
+    });
+    await test('refresh after a lost save response recovers the same registration', async open => {
+      const form=await open({loseSave:true});const {page,f,requests}=form;await fillForm(page);
+      await page.locator('#regForm button[type="submit"]').click();
+      await page.waitForFunction(()=>!document.querySelector('#regForm button[type="submit"]').disabled);
+      assert.equal(form.dialogs.length,1);assert.equal(f.rows.length,2);
+      assert(new URL(page.url()).searchParams.has('registration'));
+      await page.reload();await page.getByText('Registration reference: '+f.rows[1][C.id],{exact:true}).waitFor();
+      assert.equal(f.rows.length,2);assert.equal(new Set(requests.map(r=>r.token)).size,1);
+      assert.equal(requests.at(-1).action,'status');assert.equal(f.count('capture'),0);
     });
     await test('missing PayPal SDK leaves details saved with a clear error', async open => {
       const {page, f} = await open({missingSDK:true}); await fillForm(page); await save(page);
@@ -266,7 +305,7 @@ async function run() {
       const {page,f}=await open();await fillForm(page);await save(page);
       await page.getByText('Test PayPal checkout',{exact:true}).click();await page.waitForFunction(()=>window.testOrderId);
       (await row(f))[C.context]='sandbox:merchant:client';[...f.orders.values()][0].purchase_units[0].amount.value='200.00';
-      await page.reload();await page.locator('#success-msg').waitFor({state:'visible'});
+      await page.reload();await page.getByText('Your existing checkout remains $200.00, with no added processing fee.',{exact:true}).waitFor();
       assert.match(await page.locator('.online-option').textContent(),/existing checkout remains \$200.00/);
       await page.getByText('Test PayPal checkout',{exact:true}).click();await page.waitForFunction(()=>window.testOrderId);
       [...f.orders.values()][0].status='APPROVED';await page.evaluate(()=>window.checkout.onApprove({},{}));

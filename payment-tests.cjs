@@ -773,6 +773,46 @@ test('offline reports cannot change each other and manual receipt confirmation s
   assert.equal(g.row()[C.status],'Coordinator');
 });
 
+test('direct visits start fresh; only a matching continuation link restores a tab-local registration', () => {
+  const storage = new Map([['mfm-registration-token', token(99)], ['mfm-registration-saved','yes']]);
+  const sessionSource = html.slice(html.indexOf('let activeRegistration = null;'), html.indexOf('async function api('));
+  function page(href, data = storage) {
+    const location = {href};
+    const ctx = {URL, location, crypto:crypto.webcrypto, Uint8Array,
+      sessionStorage:{getItem:key => data.get(key) ?? null, setItem:(key,value) => data.set(key,value)},
+      history:{replaceState:(_state,_title,url) => {location.href = url;}}};
+    vm.createContext(ctx);vm.runInContext(sessionSource,ctx);
+    return ctx;
+  }
+  const first=page('https://mfm-registration.test/?source=church#top');
+  assert.equal(first.loadRegistrationSession(),false,'legacy saved flags must not reopen a submission');
+  const firstToken=first.registrationToken();
+  const firstURL=first.location.href;
+  const firstID=new URL(firstURL).searchParams.get('registration');
+  assert.match(firstID,/^[a-f0-9]{32}$/);assert.match(firstToken,/^[a-f0-9]{64}$/);
+  assert.equal(storage.get('mfm-registration:'+firstID),firstToken);
+  assert(!firstURL.includes(firstToken),'the URL must never contain a bearer token');
+  assert.equal(new URL(firstURL).searchParams.get('source'),'church');
+  assert.equal(new URL(firstURL).hash,'#top');
+  assert.equal(first.registrationToken(),firstToken,'retry must use the same registration');
+  const reload=page(firstURL);
+  assert.equal(reload.loadRegistrationSession(),true);assert.equal(reload.registrationToken(),firstToken);
+  const direct=page('https://mfm-registration.test/');
+  assert.equal(direct.loadRegistrationSession(),false);
+  const secondToken=direct.registrationToken();assert.notEqual(secondToken,firstToken);
+  assert.equal(first.registrationToken(),firstToken,'an older page keeps its own token after another submission');
+  const back=page(firstURL);
+  assert.equal(back.loadRegistrationSession(),true);assert.equal(back.registrationToken(),firstToken);
+  const shared=page(firstURL,new Map());
+  assert.equal(shared.loadRegistrationSession(),false);
+  assert.equal(new URL(shared.location.href).searchParams.has('registration'),false);
+  const invalid=page('https://mfm-registration.test/?registration=invalid&source=church');
+  assert.equal(invalid.loadRegistrationSession(),false);
+  assert.equal(invalid.location.href,'https://mfm-registration.test/?source=church');
+  storage.set('mfm-registration:'+firstID,'invalid');
+  assert.equal(page(firstURL).loadRegistrationSession(),false);
+});
+
 async function frontendTests() {
   for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
     if (match[1].trim()) new vm.Script(match[1]);
@@ -792,7 +832,7 @@ async function frontendTests() {
       paypal:{Buttons:options => { callbacks = options; return {render:() => Promise.resolve()}; }},
       api:async () => response};
     vm.createContext(ctx);
-    vm.runInContext(html.slice(html.indexOf('function showSuccessAndPay('), html.indexOf("if (sessionStorage.getItem('mfm-registration-saved')")), ctx);
+    vm.runInContext(html.slice(html.indexOf('function showSuccessAndPay('), html.indexOf('if (loadRegistrationSession())')), ctx);
     ctx.showSuccessAndPay({registrationId:'REG1', paid:false,paymentVersion:2,checkoutAmount:'204.47',...initial});
     return {nodes, callbacks, ctx, find:text=>all.find(el=>el.textContent===text)};
   }

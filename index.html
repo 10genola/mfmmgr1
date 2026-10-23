@@ -776,7 +776,6 @@ document.getElementById('regForm').addEventListener('submit', function(e){
   submitBtn.textContent = 'Saving...';
 
   api({action:'register', ...data}).then(function(result){
-    sessionStorage.setItem('mfm-registration-saved','yes');
     showSuccessAndPay(result);
   }).catch(function(err){
     alert('Registration could not be confirmed as saved. '+err.message+' Retry with the same details.');
@@ -785,15 +784,38 @@ document.getElementById('regForm').addEventListener('submit', function(e){
   });
 });
 
-// A random bearer token identifies one registration, including retries and reloads.
-// It stays in this browser tab; never put it in URLs or send it to PayPal.
-function registrationToken() {
-  let token = sessionStorage.getItem('mfm-registration-token');
-  if (!token) {
-    token = Array.from(crypto.getRandomValues(new Uint8Array(32)), b=>b.toString(16).padStart(2,'0')).join('');
-    sessionStorage.setItem('mfm-registration-token',token);
+// Only an explicit registration URL resumes a submission. The public flow ID
+// selects a tab-local token; the bearer token never appears in the URL.
+let activeRegistration = null;
+function randomHex(bytes) {
+  return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), b=>b.toString(16).padStart(2,'0')).join('');
+}
+function loadRegistrationSession() {
+  const url = new URL(location.href);
+  const id = url.searchParams.get('registration');
+  const token = id && /^[a-f0-9]{32}$/.test(id) ? sessionStorage.getItem('mfm-registration:'+id) : null;
+  if (token && /^[a-f0-9]{64}$/.test(token)) {
+    activeRegistration = {id, token};
+    return true;
   }
-  return token;
+  // A shared or expired continuation link must not reopen another submission.
+  if (id !== null) {
+    url.searchParams.delete('registration');
+    history.replaceState(null, '', url.href);
+  }
+  return false;
+}
+function registrationToken() {
+  if (!activeRegistration) {
+    const id = randomHex(16), token = randomHex(32);
+    sessionStorage.setItem('mfm-registration:'+id, token);
+    const url = new URL(location.href);
+    url.searchParams.set('registration', id);
+    // Mark the attempt before sending it, so a lost save response can recover.
+    history.replaceState(null, '', url.href);
+    activeRegistration = {id, token};
+  }
+  return activeRegistration.token;
 }
 async function api(payload) {
   if (GOOGLE_SHEET_URL.includes('YOUR_')) throw Error('The organizer has not connected registration yet.');
@@ -984,8 +1006,16 @@ function showSuccessAndPay(result) {
     if (!checkoutClosed) message.textContent='PayPal could not load: '+(err.message || 'Please refresh to try again.');
   });
 }
-if (sessionStorage.getItem('mfm-registration-saved')==='yes') {
+if (loadRegistrationSession()) {
+  // Hide the form while checking this explicitly resumed registration, so a
+  // late status response cannot interrupt someone entering a new participant.
+  document.getElementById('regForm').style.display='none';
+  document.getElementById('success-msg').style.display='block';
+  document.querySelector('#success-msg h2').textContent='Checking your registration';
+  document.querySelector('#success-msg p').textContent='Please wait while we check your saved details and payment status.';
   api({action:'status'}).then(showSuccessAndPay).catch(function(e){
+    document.getElementById('success-msg').style.display='none';
+    document.getElementById('regForm').style.display='block';
     const notice=document.getElementById('val-summary');
     notice.textContent='Could not restore your pending registration: '+e.message+' Retry saving to recover the same registration.';
     notice.style.display='block';
