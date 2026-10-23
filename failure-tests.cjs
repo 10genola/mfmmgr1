@@ -29,7 +29,7 @@ const scenarios = {
     assert.equal(f.call('createOrder').ok, false);
   }},
   correction: {action:'register', data:{firstName:'One', lastName:'Camper', email:'correct@example.com', phone:'+1 (212) 555-1234',
-    gender:'Female', grade:'8th', tshirt:'M', state:'New York', coordinator:'Yes', pastor:'Pastor A', waiver:'No', release:'Yes', zipline:'No'},
+    gender:'Female', grade:'8th', tshirt:'M', state:'New York', coordinator:'Yes', pastor:'Pastor A', waiver:'Yes', release:'Yes', zipline:'No'},
     setup:f=>{}, check:f=>{ assert.equal(f.row()[3], 'correct@example.com'); assert.equal(f.rows.length, 2); assert.equal(f.orders.size, 0); }},
   reapproved: {action:'confirmPayment', setup:f=>{
     f.create(); f.order().status = 'APPROVED';

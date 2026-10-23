@@ -59,7 +59,7 @@ async function fillForm(page, email = 'parent@example.com') {
   await page.locator('#lastName').fill('Camper');
   await page.locator('#email').fill(email);
   await page.locator('#phone').fill('+1 (212) 555-1234');
-  for (const id of ['gFemale','sM','coordYes','wNo']) await page.locator('label[for="' + id + '"]').click();
+  for (const id of ['gFemale','sM','coordYes','wYes']) await page.locator('label[for="' + id + '"]').click();
   await page.getByRole('checkbox',{name:'Basketball',exact:true}).check();
   await page.getByRole('checkbox',{name:'Soccer',exact:true}).check();
   await page.locator('#grade').selectOption('8th');
@@ -103,6 +103,18 @@ async function run() {
       assert.equal(await page.locator('#val-summary').isVisible(), true);
       assert.equal(await page.locator('#success-msg').isVisible(), false);
     });
+    await test('waiver No cannot proceed; changing it to Yes saves an explicit confirmation', async open => {
+      const {page, f, requests} = await open(); await fillForm(page);
+      await page.locator('label[for="wNo"]').click();
+      await page.locator('#regForm button[type="submit"]').click();
+      assert.equal(requests.length, 0);
+      assert.equal(await page.locator('#err-waiver').isVisible(), true);
+      assert.equal(await page.locator('#success-msg').isVisible(), false);
+      await page.locator('label[for="wYes"]').click();
+      assert.equal(await page.locator('#err-waiver').isVisible(), false);
+      await save(page);
+      assert.equal((await row(f))[11], 'Yes'); assert.equal((await row(f))[12], 'Yes');
+    });
     await test('all required radio groups can be selected with a keyboard', async open => {
       const {page} = await open();
       await page.locator('#phone').focus();
@@ -144,8 +156,8 @@ async function run() {
       await fillForm(page); await save(page);
       assert.equal((await row(f))[3], 'parent@example.com');
       assert.equal((await row(f))[4], '(212) 555-1234');
-      assert.equal((await row(f))[11], 'No');
-      assert.equal((await row(f))[12], 'No');
+      assert.equal((await row(f))[11], 'Yes');
+      assert.equal((await row(f))[12], 'Yes');
       assert.equal((await row(f))[13], 'Basketball, Soccer');
       assert.equal((await row(f))[C.status], 'Pending');
       assert.equal(f.orders.size, 0, 'saving alone cannot start payment');

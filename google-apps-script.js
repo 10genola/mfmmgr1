@@ -173,6 +173,9 @@ function validateRegistration(d) {
   Object.keys(choices).forEach(key => {
     if (!choices[key].includes(values[key])) throw Error('Please choose a valid ' + key + '.');
   });
+  if (values.waiver !== 'Yes' || values.release !== 'Yes') {
+    throw Error('Please complete the Retreat Release Waiver forms and select Yes to continue.');
+  }
   if (d.sports !== undefined) {
     if (!Array.isArray(d.sports) || d.sports.length > OUTDOOR_SPORTS.length ||
         d.sports.some(sport => !OUTDOOR_SPORTS.includes(sport)) || new Set(d.sports).size !== d.sports.length) {
@@ -183,7 +186,7 @@ function validateRegistration(d) {
     // Older open forms remain usable while the website update is deployed.
     values.sports = 'Zip line: ' + d.zipline;
   } else throw Error('Please choose valid outdoor sports.');
-  // A "No" waiver/release answer is valid; it is not turned into consent.
+  // Store the explicit Yes answers; never turn a No into confirmation.
   return FORM_FIELDS.map(key => clean(values[key]));
 }
 function register(d, hash, c) {

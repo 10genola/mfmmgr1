@@ -21,7 +21,7 @@ This package updates the local registration site used for Cloudflare, not the se
 
 The Activities section now offers independent, optional checkboxes for **Basketball**, **Soccer**, and **Other sports**. Column N becomes **Outdoor Sports** and stores the selected names, or **None selected**. Existing zip line answers are preserved as **Zip line: Yes** or **Zip line: No**. The migration is safe to repeat and does not move payment columns or overwrite organizer notes.
 
-Waivers & Consent now has one download link and one Yes/No question covering the Retreat Release Waiver forms. The answer is saved to both existing waiver columns for compatibility; a No stays No in both columns. This consolidation requires no additional Apps Script change.
+Waivers & Consent has one download link and one Yes/No question covering the Retreat Release Waiver forms. **Yes is required before a new registration can continue.** An unanswered question or No stops the form before saving or showing payment options. The explicit Yes is saved to both existing waiver columns for compatibility. Deploy this updated Apps Script to enforce the same requirement on direct registration requests and older browser pages. Existing saved registrations are not rewritten by this change.
 
 The original older POC sheet without registration IDs and token hashes cannot be converted automatically. Keep that sheet for reconciliation and start a blank spreadsheet if you are upgrading from that original version. A sheet whose first 23 headers match this package upgrades automatically.
 
@@ -54,7 +54,7 @@ Open http://127.0.0.1:8090/ . For public use, upload `index.html` to an HTTPS st
 
 ## Payment behavior
 
-- A new registration is **Pending**. The server validates all required fields, saves the record, and returns its reference before showing checkout. A waiver or release answer of **No** remains No; the app does not turn it into consent.
+- A new registration is **Pending**. The server validates all required fields, requires **Yes** for both waiver and release, saves the record, and returns its reference before showing checkout. A **No** answer is rejected, never converted into confirmation.
 - The server fixes new PayPal/card payments at **$204.47 USD**, checks the recipient, amount, currency, and registration before capture, and requires a completed matching capture before recording **Paid**. The price is stored with each checkout. Existing $200 orders retain their original price, including safely replaced expired orders; a browser cannot select its own price.
 - A corrected form resubmission updates the same Pending row only before checkout starts. Once an order, payment request, Zelle selection, or coordinator report exists, changed details produce an explicit error; the organizer must handle corrections. Identical resubmissions remain safe.
 - Opening the main registration URL always shows a fresh form, even in a tab that previously submitted a registration. Once a valid form is submitted, its URL gains a `registration` reference. Refreshing that specific page restores the same submission, including after a lost save response. The reference is not a credential: its secret token stays in session storage in that browser tab. A continuation link without its matching token opens the form. Separate references keep earlier submissions distinct when using browser history. To register another participant, open the main URL again; siblings may share an email.

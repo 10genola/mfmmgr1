@@ -8,7 +8,7 @@ const html = fs.readFileSync(__dirname + '/index.html', 'utf8');
 const clone = value => JSON.parse(JSON.stringify(value));
 const fields = {firstName:'One', lastName:'Camper', email:'parent@example.com', phone:'+1 (212) 555-1234',
   gender:'Female', grade:'8th', tshirt:'M', state:'New York', coordinator:'Yes',
-  pastor:'Pastor A', waiver:'No', release:'Yes', zipline:'No'};
+  pastor:'Pastor A', waiver:'Yes', release:'Yes', zipline:'No'};
 const token = n => n.toString(16).padStart(64, '0');
 const C = {status:14, order:15, id:18, hash:19, capture:20, checked:21, error:22,
   lease:23, until:24, key:25, started:26, requested:27, history:28, context:29};
@@ -145,8 +145,22 @@ test('all required fields, enums, types and length limits are validated server-s
     assert.equal(fixture().call('register', 1, {...fields, phone:bad}).ok, false);
   }
   assert.equal(fixture().call('register', 1, {...fields, email:'bad@address'}).ok, false);
-  const f = fixture(); f.register(1, {waiver:'No', release:'No', zipline:'No'});
-  assert.equal(f.row()[11], 'No');
+});
+
+test('waiver and release must both be Yes before saving a registration', () => {
+  for (const [waiver, release] of [['No','No'],['No','Yes'],['Yes','No']]) {
+    const f = fixture();
+    const result = f.call('register', 1, {...fields, waiver, release, sports:[]});
+    assert.equal(result.ok, false);
+    assert.match(result.error, /complete the Retreat Release Waiver forms and select Yes/);
+    assert.equal(f.rows.length, 1, 'a declined confirmation cannot save a registration');
+    assert.equal(f.orders.size, 0);
+  }
+  const f = fixture(); f.register(1, {sports:[]});
+  assert.equal(f.row()[11], 'Yes'); assert.equal(f.row()[12], 'Yes');
+  const saved = clone(f.row());
+  assert.equal(f.call('register', 1, {...fields, waiver:'No', release:'No', sports:[]}).ok, false);
+  assert.deepEqual(clone(f.row()), saved, 'an invalid retry cannot alter a saved confirmation');
 });
 
 test('formula escaping and malformed/oversized requests', () => {

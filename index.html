@@ -615,14 +615,14 @@
         <input type="radio" name="waiver" id="wNo" value="No"/>
         <label for="wNo">No</label>
       </div>
-      <span class="field-error" id="err-waiver">Please confirm whether you have completed the Retreat Release Waiver forms.</span>
+      <span class="field-error" id="err-waiver">Please complete the Retreat Release Waiver forms and select Yes to continue.</span>
     </div>
   </div>
 
   <!-- 5. Payment -->
   <div class="section">
     <div class="section-title">Payment</div>
-    <div id="val-summary">&#9888;&#65039; Please fill in all required fields before submitting.</div>
+    <div id="val-summary">&#9888;&#65039; Please complete all required fields and confirmations before continuing.</div>
     <div class="payment-placeholder">
       <div class="pay-icon">&#128179;</div>
       <h3>Registration Fee: $<span id="feeAmount">200</span>.00</h3>
@@ -701,7 +701,10 @@ function radio(name)    { var r=document.querySelector('input[name="'+name+'"]:c
 var radioMaps = {gender:'genderGroup',coordinator:'coordGroup',waiver:'waiverGroup'};
 Object.keys(radioMaps).forEach(function(name){
   document.querySelectorAll('input[name="'+name+'"]').forEach(function(r){
-    r.addEventListener('change', function(){ okG(radioMaps[name],'err-'+name); });
+    r.addEventListener('change', function(){
+      if (name === 'waiver' && radio(name) !== 'Yes') failG(radioMaps[name],'err-'+name);
+      else okG(radioMaps[name],'err-'+name);
+    });
   });
 });
 document.querySelectorAll('input[name="shirt"]').forEach(function(r){
@@ -733,10 +736,12 @@ document.getElementById('regForm').addEventListener('submit', function(e){
     {name:'gender',      gid:'genderGroup', eid:'err-gender'},
     {name:'shirt',       gid:'shirtGroup',  eid:'err-shirt'},
     {name:'coordinator', gid:'coordGroup',  eid:'err-coordinator'},
-    {name:'waiver',      gid:'waiverGroup', eid:'err-waiver'},
+    {name:'waiver',      gid:'waiverGroup', eid:'err-waiver', requiredValue:'Yes'},
   ];
   groups.forEach(function(g){
-    if(!radio(g.name)){ failG(g.gid,g.eid); valid=false; } else okG(g.gid,g.eid);
+    if(!radio(g.name) || (g.requiredValue && radio(g.name) !== g.requiredValue)) {
+      failG(g.gid,g.eid); valid=false;
+    } else okG(g.gid,g.eid);
   });
 
   var summary = document.getElementById('val-summary');
